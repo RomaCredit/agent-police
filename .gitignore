@@ -32,3 +32,7 @@ agent-police-*.json
 agentpolice/server/static/download/
 
 .DS_Store
+
+# Host-specific deployment values.
+.env
+!.env.example

@@ -1,50 +1,61 @@
+# Deployment for a host that already runs a reverse proxy. Every site-specific
+# value comes from .env (see .env.example); nothing about a particular server
+# is committed.
+
 services:
   agent-police:
-    # No `build:` on purpose. This host runs production traffic; images are
-    # built and tested in CI and pulled here. Deploy is `docker compose pull
-    # && docker compose up -d`, never `--build`.
-    # Default assumes the repository is pushed as romacredit/agent-police; if
-    # CI publishes elsewhere, set AGENT_POLICE_IMAGE (the CI job prints the
-    # exact value to use).
-    image: ${AGENT_POLICE_IMAGE:-ghcr.io/romacredit/agent-police:latest}
+    # No `build:` on purpose. Images are built and tested in CI and pulled
+    # here: a build on the host that serves production traffic competes with
+    # it. Deploy is `docker compose pull && docker compose up -d`, never
+    # `--build`.
+    image: ${AGENT_POLICE_IMAGE:?set AGENT_POLICE_IMAGE in .env}
     # `missing`, not `always`: updates go through an explicit `docker compose
     # pull`, so a restart during an incident still works when the registry is
     # unreachable.
     pull_policy: missing
-    container_name: agent-police
+    container_name: ${AGENT_POLICE_CONTAINER:-agent-police}
     restart: unless-stopped
+
     environment:
       AGENT_POLICE_AUTOAPP: "1"
       AGENT_POLICE_DB: /data/canaries.db
-      AGENT_POLICE_CANARY_BASE: https://security.romaapi.com
-      # c.romaapi.com is delegated here by an NS record pointing at
-      # security.romaapi.com (DNS-only). Only set this while UDP/53 is
-      # actually reachable: with a zone configured but unreachable, the
-      # provider issues DNS canaries that can never fire, which is worse
-      # than falling back to HTTP ones.
-      AGENT_POLICE_CANARY_DNS: c.romaapi.com
-      AGENT_POLICE_DNS_A: "116.203.216.59"
-      AGENT_POLICE_DNS_AAAA: "2a01:4f8:1c18:4b1e::1"
-      AGENT_POLICE_DNS_NS: security.romaapi.com
+      # Public base of the HTTP canary collector. Canary URLs planted in probe
+      # traffic point here, so it has to be reachable from anywhere.
+      AGENT_POLICE_CANARY_BASE: ${AGENT_POLICE_CANARY_BASE:?set AGENT_POLICE_CANARY_BASE in .env}
+      # DNS canary zone, delegated to this host by an NS record. Leave empty
+      # unless UDP/53 is actually reachable: with a zone configured but
+      # unreachable, the provider issues DNS canaries that can never fire,
+      # which is worse than falling back to HTTP ones.
+      AGENT_POLICE_CANARY_DNS: ${AGENT_POLICE_CANARY_DNS:-}
+      AGENT_POLICE_DNS_A: ${AGENT_POLICE_DNS_A:-}
+      AGENT_POLICE_DNS_AAAA: ${AGENT_POLICE_DNS_AAAA:-}
+      AGENT_POLICE_DNS_NS: ${AGENT_POLICE_DNS_NS:-}
+
     volumes:
       - agent_police_data:/data
+
     networks:
-      - hub-net
-    # HTTP is reached through Caddy over the shared network; DNS has to be
-    # published, because the canary zone is delegated straight to this host.
+      - proxy-net
+
+    # HTTP is reached by the reverse proxy over the shared network and is not
+    # published. DNS is published, because the canary zone is delegated
+    # straight to this host.
     expose:
       - "8080"
     ports:
-      # Bound to the public addresses rather than 0.0.0.0: systemd-resolved
-      # holds 127.0.0.53:53, and a wildcard bind collides with it. This also
-      # keeps the collector off the docker bridge addresses.
-      - "116.203.216.59:53:53/udp"
-      - "[2a01:4f8:1c18:4b1e::1]:53:53/udp"
+      # Bound to specific addresses rather than 0.0.0.0: a resolver stub such
+      # as systemd-resolved holds 127.0.0.53:53, and a wildcard bind collides
+      # with it. This also keeps the collector off the docker bridge
+      # addresses. Comment these out entirely if you are not running DNS
+      # canaries.
+      - "${AGENT_POLICE_DNS_BIND_V4:?set AGENT_POLICE_DNS_BIND_V4 in .env}:53:53/udp"
+      - "[${AGENT_POLICE_DNS_BIND_V6:?set AGENT_POLICE_DNS_BIND_V6 in .env}]:53:53/udp"
 
 volumes:
   agent_police_data:
 
 networks:
-  hub-net:
+  proxy-net:
     external: true
-    name: romaapicom_hub-net
+    # The network your reverse proxy is already attached to.
+    name: ${AGENT_POLICE_PROXY_NETWORK:?set AGENT_POLICE_PROXY_NETWORK in .env}

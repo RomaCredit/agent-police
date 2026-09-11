@@ -1,9 +1,12 @@
-# agent-police - append to /root/romaapi.com/caddy/Caddyfile.hub
+# agent-police - append to your Caddyfile.
+#
+# Replace security.example.com with the host you serve the collector on; it
+# must match AGENT_POLICE_CANARY_BASE in .env.
 #
 # Additive only: no existing site block is touched. To roll back, delete
 # these two blocks and reload Caddy.
 
-security.romaapi.com {
+security.example.com {
   reverse_proxy agent-police:8080 {
     flush_interval -1
     transport http {
@@ -16,7 +19,7 @@ security.romaapi.com {
   encode zstd gzip
 }
 
-http://security.romaapi.com {
+http://security.example.com {
   # Canary callbacks are evidence. Record them even when the caller never
   # upgrades to TLS, rather than answering with a redirect it may not follow.
   handle /c/* {
