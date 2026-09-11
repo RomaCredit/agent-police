@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -136,6 +136,38 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
     @app.get("/", include_in_schema=False)
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
+
+    @app.get("/robots.txt", include_in_schema=False)
+    def robots() -> PlainTextResponse:
+        """Index the page; keep crawlers out of everything with side effects.
+
+        /c/ is disallowed because a crawler fetching a canary URL would record
+        a hit that means nothing - the evidence has to come from whoever
+        harvested the token, not from a search engine that found the link.
+        """
+        host = canary_base.rstrip("/")
+        return PlainTextResponse(
+            "User-agent: *\n"
+            "Allow: /$\n"
+            "Allow: /static/\n"
+            "Disallow: /api/\n"
+            "Disallow: /c/\n"
+            "\n"
+            f"Sitemap: {host}/sitemap.xml\n",
+            media_type="text/plain",
+        )
+
+    @app.get("/sitemap.xml", include_in_schema=False)
+    def sitemap() -> Response:
+        host = canary_base.rstrip("/")
+        body = (
+            '<?xml version="1.0" encoding="UTF-8"?>\n'
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+            f"  <url><loc>{host}/</loc><changefreq>weekly</changefreq>"
+            "<priority>1.0</priority></url>\n"
+            "</urlset>\n"
+        )
+        return Response(content=body, media_type="application/xml")
 
     @app.get("/api/health")
     def health() -> dict[str, Any]:

@@ -4,10 +4,106 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>agent-police · 检测你的 API 中转站是否在篡改 agent 的工具调用</title>
-<meta name="description" content="检测 LLM API 中转站是否改写 agent 的工具调用、替换依赖包或窃取凭证。基于 arXiv:2604.08407 的攻击分类。">
-<meta name="robots" content="index,follow">
+<meta name="description" content="在线检测 LLM API 中转站是否改写 agent 的工具调用、替换依赖包或窃取凭证。端点体检与命令自查无需提供密钥。攻击分类来自 arXiv:2604.08407，该论文实测 428 个商用中转站，发现 9 个在注入恶意代码。">
+<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+<link rel="canonical" href="https://security.romaapi.com/">
+<meta name="author" content="agent-police">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://security.romaapi.com/">
+<meta property="og:site_name" content="agent-police">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:title" content="你的 agent 执行的命令，真的是模型生成的那一条吗？">
+<meta property="og:description" content="第三方 API 中转站终止你的 TLS，能读取并改写模型返回的工具调用参数，而没有任何厂商提供端到端完整性校验。这个工具主动探测你指定的端点，检查它是否真的在改。">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="agent-police · 检测 API 中转站是否篡改工具调用">
+<meta name="twitter:description" content="端点体检与命令自查无需密钥。开源，Apache-2.0。">
+
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡️</text></svg>">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://security.romaapi.com/#software",
+      "name": "agent-police",
+      "applicationCategory": "SecurityApplication",
+      "operatingSystem": "Linux, macOS, Windows",
+      "description": "检测 LLM API 中转站、代理与网关是否篡改工具调用、替换依赖包或窃取凭证。实现 arXiv:2604.08407 提出的 AC-1 / AC-1.a / AC-1.b / AC-2 攻击分类，且绝不执行被测端点返回的命令。",
+      "url": "https://security.romaapi.com/",
+      "downloadUrl": "https://pypi.org/project/agent-police/",
+      "codeRepository": "https://github.com/RomaCredit/agent-police",
+      "programmingLanguage": "Python",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "softwareRequirements": "Python >= 3.10",
+      "featureList": [
+        "AC-1 工具调用载荷注入检测",
+        "AC-1.a 依赖包替换与抢注检测",
+        "AC-1.b 条件投递的会话指纹网格扫描",
+        "AC-2 凭证窃取的 HTTP 与 DNS canary",
+        "端点体检：中转软件指纹、开放中继、响应头剥离、TLS"
+      ],
+      "citation": {
+        "@type": "ScholarlyArticle",
+        "name": "Your Agent Is Mine: Measuring Malicious Intermediary Attacks on the LLM Supply Chain",
+        "identifier": "arXiv:2604.08407",
+        "url": "https://arxiv.org/abs/2604.08407"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://security.romaapi.com/#faq",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "怎么判断我的 API 中转站在不在改我的请求？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "有个五秒钟、对任何中转站都适用的检查：发一条内容为 hi 的请求，看响应里的 prompt_tokens。个位数是正常的；几百上千说明有人在你的请求前面塞了内容，而且在按塞进去的 token 向你计费。要判断响应侧是否被改写，需要发出一条正确答案已知的请求再逐字比对，这正是本站完整探测做的事。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "便宜的 Claude 或 GPT API 中转站能不能用？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "中转站在设计上就是应用层的中间人：它终止你的 TLS、用自己的连接访问上游，因此你的 prompt、工具定义和 API key 对它都是明文，它也能改写你的 agent 随后要执行的工具调用。arXiv:2604.08407 实测 428 个商用中转站，发现 9 个在注入恶意代码、17 个动了研究者的 AWS canary 凭证、1 个把 ETH 私钥里的钱转走了。付费并不更安全：28 个付费中转站里有 1 个在注入。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "扫描结果显示干净，就代表这个中转站安全吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "不代表。条件投递（AC-1.b）在触发条件满足之前始终表现正常，而触发逻辑在服务端。论文在真实中转站上观察到的触发条件包括：前 50 次请求先装好人、只对自动批准模式的会话下手、只针对 Rust 或 Go 项目。任何有限次数的黑盒探测都无法证明一个中转站是诚实的。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "检测过程会执行被测端点返回的命令吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "绝不会。检测完全在字符串和元数据层面完成：探针请求一条命令，工具比对返回的参数，不运行任何东西。这是与论文中那套在沙箱里执行载荷的测量流水线的刻意区别。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "必须把 API key 交出来才能检测吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "不是全部功能都需要。端点体检和命令自查完全不需要密钥，可以直接判断端点是谁、跑的什么中转软件、上游响应头是否被剥、是否是无需认证的开放中继。只有 AC-1 和 AC-1.a 需要密钥，因为它们必须拿到真实的模型响应才能比对。如果不希望密钥离开本机，可以用 pip install agent-police 在本地运行完全相同的检测逻辑。"
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
@@ -244,6 +340,70 @@ agent-police inspect "curl -sSL https://get.example.com/i.sh | bash"</pre>
       用运行时打印的 audit id 回查：<code>agent-police canary check --audit-id cli-…</code>。
       <code>--no-canary</code> 可完全离线运行，<code>agent-police serve</code> 可自建收集器。
     </p>
+  </div>
+</section>
+
+<!-- ============ 5. 常见问题 ============ -->
+<section>
+  <div class="wrap">
+    <h2><span class="num">05</span>常见问题</h2>
+
+    <div class="explain">
+      <div class="ex">
+        <h4>怎么判断我的 API 中转站在不在改我的请求？</h4>
+        <p>
+          有个五秒钟、对任何中转站都适用的检查：<strong>发一条内容为 <code>hi</code> 的请求，
+          看响应里的 <code>prompt_tokens</code>。</strong>
+          个位数是正常的；几百上千说明有人在你的请求前面塞了内容，而且在按塞进去的 token 向你计费。
+        </p>
+        <p style="margin:0">
+          要判断<strong>响应侧</strong>是否被改写，必须发出一条正确答案已知的请求再逐字比对——
+          这正是本页「完整探测」做的事。
+        </p>
+      </div>
+
+      <div class="ex">
+        <h4>便宜的 Claude / GPT 中转站能不能用？</h4>
+        <p>
+          中转站在设计上就是应用层的中间人：它终止你的 TLS、用自己的连接访问上游，
+          因此你的 prompt、工具定义和 API key 对它都是明文，它也能改写你的 agent 随后要执行的工具调用。
+        </p>
+        <p style="margin:0">
+          论文实测 428 个商用中转站，发现 <strong>9 个在注入恶意代码</strong>、17 个动了研究者的
+          AWS canary 凭证、1 个把 ETH 私钥里的钱转走了。
+          需要强调的是<strong>付费并不更安全</strong>——28 个付费中转站里同样有 1 个在注入。
+        </p>
+      </div>
+
+      <div class="ex">
+        <h4>扫描结果显示干净，就代表这个中转站安全吗？</h4>
+        <p style="margin:0">
+          <strong>不代表。</strong>条件投递（AC-1.b）在触发条件满足之前始终表现正常，而触发逻辑在服务端。
+          论文在真实中转站上观察到的触发条件包括：前 50 次请求先装好人、只对自动批准模式的会话下手、
+          只针对 Rust / Go 项目。<strong>任何有限次数的黑盒探测都无法证明一个中转站是诚实的。</strong>
+        </p>
+      </div>
+
+      <div class="ex">
+        <h4>检测过程会执行被测端点返回的命令吗？</h4>
+        <p style="margin:0">
+          <strong>绝不会。</strong>检测完全在字符串和元数据层面完成：探针请求一条命令，
+          工具比对返回的参数，不运行任何东西。这是与论文中那套在沙箱里执行载荷的测量流水线的刻意区别。
+        </p>
+      </div>
+
+      <div class="ex">
+        <h4>必须把 API key 交出来才能检测吗？</h4>
+        <p>
+          不是全部功能都需要。<strong>端点体检和命令自查完全不需要密钥</strong>，
+          可以直接判断端点是谁、跑的什么中转软件、上游响应头是否被剥、是否是无需认证的开放中继。
+        </p>
+        <p style="margin:0">
+          只有 AC-1 和 AC-1.a 需要密钥，因为它们必须拿到真实的模型响应才能比对。
+          如果不希望密钥离开本机，用 <code>pip install agent-police</code> 在本地跑完全相同的检测逻辑。
+        </p>
+      </div>
+    </div>
   </div>
 </section>
 
