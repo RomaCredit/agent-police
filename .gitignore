@@ -1,0 +1,34 @@
+# Local environment
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Test and tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Reference papers, not source. These are large and not ours to redistribute.
+*.pdf
+
+# Canary state: tokens and hit records, never credentials, but still local
+# operational data that does not belong in the repository.
+*.db
+*.db-wal
+*.db-shm
+canaries.db*
+
+# Audit reports can quote endpoint responses; keep them out by default.
+*-report.json
+agent-police-*.json
+
+# Built source tarball served by the site, produced during docker build.
+agentpolice/server/static/download/
+
+.DS_Store

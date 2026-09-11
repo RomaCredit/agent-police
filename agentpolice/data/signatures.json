@@ -1,0 +1,151 @@
+{
+ "_comment": [
+  "Router-template signatures. Each signature is self-proving: agent-police",
+  "reports the response evidence that matched, not a claim from a list. Add",
+  "your own with --signatures. 'confidence' describes how specific the",
+  "evidence is to that software, not how sure we are that it is malicious -",
+  "running any of these is completely normal and is not itself a finding.",
+  "",
+  "A signature only matches if at least one STRONG check matches. A strong",
+  "check inspects content (content_type, json_has_key, json_contains,",
+  "body_contains); a bare status check is weak, because routers that serve a",
+  "single-page app answer 200 with the same shell for every unknown path.",
+  "Every check is additionally discarded if its response is indistinguishable",
+  "from the endpoint's measured catch-all response."
+ ],
+ "signatures": [
+  {
+   "id": "litellm",
+   "name": "LiteLLM proxy",
+   "confidence": "high",
+   "note": "Open-source router; the March 2026 dependency-confusion compromise gave the injected code write access to every transiting request.",
+   "checks": [
+    {
+     "path": "/openapi.json",
+     "content_type": "json",
+     "json_contains": {
+      "info.title": "LiteLLM"
+     }
+    },
+    {
+     "path": "/v1/model/info",
+     "status": 200,
+     "content_type": "json",
+     "json_has_key": "data"
+    },
+    {
+     "path": "/health/liveliness",
+     "status": 200,
+     "content_type": "text/plain"
+    }
+   ]
+  },
+  {
+   "id": "oneapi-family",
+   "name": "one-api / new-api family",
+   "confidence": "high",
+   "note": "The two templates that underpin most commodity resale routers (arXiv:2604.08407 section 2.1). Calibrated against a live new-api deployment: /api/status returns JSON with success=true and a data object.",
+   "checks": [
+    {
+     "path": "/api/status",
+     "status": 200,
+     "content_type": "json",
+     "json_has_key": "data",
+     "json_contains": {
+      "success": true
+     }
+    },
+    {
+     "path": "/api/about",
+     "status": 200,
+     "content_type": "json",
+     "json_has_key": "data"
+    },
+    {
+     "path": "/api/pricing",
+     "status": 200,
+     "content_type": "json",
+     "json_has_key": "data"
+    }
+   ]
+  },
+  {
+   "id": "sub2api",
+   "name": "sub2api",
+   "confidence": "low",
+   "note": "Template behind a large share of the free-router corpus measured in the paper.",
+   "checks": [
+    {
+     "path": "/api/config",
+     "status": 200,
+     "content_type": "json",
+     "json_has_key": "data"
+    },
+    {
+     "path": "/",
+     "content_type": "text/html",
+     "body_contains": "sub2api"
+    }
+   ]
+  },
+  {
+   "id": "cliproxyapi",
+   "name": "CLIProxyAPI",
+   "confidence": "low",
+   "note": "Deployed as a weak-password decoy in the paper's poisoning study.",
+   "checks": [
+    {
+     "path": "/",
+     "content_type": "text/html",
+     "body_contains": "CLIProxyAPI"
+    },
+    {
+     "path": "/v0/management/status",
+     "status": 200,
+     "content_type": "json"
+    }
+   ]
+  },
+  {
+   "id": "claude-relay-service",
+   "name": "claude-relay-service",
+   "confidence": "low",
+   "note": "Relay software used across 20 decoy domains in the paper's poisoning study.",
+   "checks": [
+    {
+     "path": "/health",
+     "status": 200,
+     "content_type": "json",
+     "json_has_key": "status"
+    },
+    {
+     "path": "/",
+     "content_type": "text/html",
+     "body_contains": "claude-relay"
+    }
+   ]
+  }
+ ],
+ "first_party_hosts": [
+  "api.openai.com",
+  "api.anthropic.com",
+  "generativelanguage.googleapis.com",
+  "aiplatform.googleapis.com",
+  "api.x.ai",
+  "api.mistral.ai",
+  "api.cohere.com",
+  "api.deepseek.com"
+ ],
+ "first_party_suffixes": [
+  ".openai.azure.com",
+  ".amazonaws.com",
+  ".cognitiveservices.azure.com"
+ ],
+ "known_aggregators": [
+  "openrouter.ai",
+  "api.together.xyz",
+  "api.groq.com",
+  "api.fireworks.ai",
+  "gateway.ai.cloudflare.com"
+ ]
+}

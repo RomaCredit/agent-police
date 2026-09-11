@@ -1,0 +1,50 @@
+services:
+  agent-police:
+    # No `build:` on purpose. This host runs production traffic; images are
+    # built and tested in CI and pulled here. Deploy is `docker compose pull
+    # && docker compose up -d`, never `--build`.
+    # Default assumes the repository is pushed as romacredit/agent-police; if
+    # CI publishes elsewhere, set AGENT_POLICE_IMAGE (the CI job prints the
+    # exact value to use).
+    image: ${AGENT_POLICE_IMAGE:-ghcr.io/romacredit/agent-police:latest}
+    # `missing`, not `always`: updates go through an explicit `docker compose
+    # pull`, so a restart during an incident still works when the registry is
+    # unreachable.
+    pull_policy: missing
+    container_name: agent-police
+    restart: unless-stopped
+    environment:
+      AGENT_POLICE_AUTOAPP: "1"
+      AGENT_POLICE_DB: /data/canaries.db
+      AGENT_POLICE_CANARY_BASE: https://security.romaapi.com
+      # c.romaapi.com is delegated here by an NS record pointing at
+      # security.romaapi.com (DNS-only). Only set this while UDP/53 is
+      # actually reachable: with a zone configured but unreachable, the
+      # provider issues DNS canaries that can never fire, which is worse
+      # than falling back to HTTP ones.
+      AGENT_POLICE_CANARY_DNS: c.romaapi.com
+      AGENT_POLICE_DNS_A: "116.203.216.59"
+      AGENT_POLICE_DNS_AAAA: "2a01:4f8:1c18:4b1e::1"
+      AGENT_POLICE_DNS_NS: security.romaapi.com
+    volumes:
+      - agent_police_data:/data
+    networks:
+      - hub-net
+    # HTTP is reached through Caddy over the shared network; DNS has to be
+    # published, because the canary zone is delegated straight to this host.
+    expose:
+      - "8080"
+    ports:
+      # Bound to the public addresses rather than 0.0.0.0: systemd-resolved
+      # holds 127.0.0.53:53, and a wildcard bind collides with it. This also
+      # keeps the collector off the docker bridge addresses.
+      - "116.203.216.59:53:53/udp"
+      - "[2a01:4f8:1c18:4b1e::1]:53:53/udp"
+
+volumes:
+  agent_police_data:
+
+networks:
+  hub-net:
+    external: true
+    name: romaapicom_hub-net

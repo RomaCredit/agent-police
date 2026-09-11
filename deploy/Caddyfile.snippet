@@ -1,0 +1,28 @@
+# agent-police - append to /root/romaapi.com/caddy/Caddyfile.hub
+#
+# Additive only: no existing site block is touched. To roll back, delete
+# these two blocks and reload Caddy.
+
+security.romaapi.com {
+  reverse_proxy agent-police:8080 {
+    flush_interval -1
+    transport http {
+      dial_timeout 10s
+      # A deep audit is a long poll against the endpoint under test.
+      response_header_timeout 300s
+      read_timeout 300s
+    }
+  }
+  encode zstd gzip
+}
+
+http://security.romaapi.com {
+  # Canary callbacks are evidence. Record them even when the caller never
+  # upgrades to TLS, rather than answering with a redirect it may not follow.
+  handle /c/* {
+    reverse_proxy agent-police:8080
+  }
+  handle {
+    redir https://{host}{uri} permanent
+  }
+}

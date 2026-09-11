@@ -1,0 +1,13 @@
+# tests/ is deliberately NOT excluded: the build's first stage runs the suite
+# on the same Python the service ships with, and needs the tests in context.
+.venv/
+.git/
+*.pdf
+docs/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
