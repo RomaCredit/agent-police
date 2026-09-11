@@ -318,12 +318,3 @@ document.querySelectorAll('.tab').forEach((tab) => {
   };
 });
 
-/* ---------- source checksum ---------- */
-
-fetch('/api/health')
-  .then((r) => r.json())
-  .then((d) => {
-    const node = document.getElementById('srcsha');
-    if (node && d.source_sha256) node.textContent = d.source_sha256;
-  })
-  .catch(() => { /* the page is still usable without it */ });

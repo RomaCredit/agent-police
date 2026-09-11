@@ -48,17 +48,22 @@ as tampering.
 
 ## Install
 
-The PyPI name `agent-police` is **not registered**. Do not `pip install` it:
-an unclaimed name on a public index is exactly the AC-1.a shape this tool
-detects, and anyone could take it. Install from source and check the digest:
+```bash
+pip install agent-police
+```
+
+<https://pypi.org/project/agent-police/> — published from
+[`.github/workflows/release.yml`](.github/workflows/release.yml) by PyPI
+trusted publishing. No API token exists for this project: GitHub proves the
+workflow's identity to PyPI over OIDC, so there is no long-lived credential to
+leak or rotate. Every release is built from a tag whose version must match
+`pyproject.toml`, after the suite passes on 3.10 through 3.14.
+
+If you would rather not trust an index at all, build from the tag:
 
 ```bash
-curl -fsSLO https://security.romaapi.com/static/download/agent-police-src.tar.gz
-curl -fsSL  https://security.romaapi.com/static/download/SHA256
-sha256sum agent-police-src.tar.gz      # compare the two by eye
-
-tar -xzf agent-police-src.tar.gz && cd agent-police
-python -m venv .venv && ./.venv/bin/pip install .
+git clone --branch v0.1.0 https://github.com/RomaCredit/agent-police
+cd agent-police && python -m venv .venv && ./.venv/bin/pip install .
 ```
 
 ## Use

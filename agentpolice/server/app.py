@@ -137,19 +137,11 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
 
-    def _source_sha() -> str | None:
-        checksum = STATIC_DIR / "download" / "SHA256"
-        try:
-            return checksum.read_text("utf-8").strip() or None
-        except OSError:
-            return None
-
     @app.get("/api/health")
     def health() -> dict[str, Any]:
         return {
             "ok": True,
             "version": __version__,
-            "source_sha256": _source_sha(),
             "canary_http": canary_base,
             "canary_dns": canary_dns,
             "modes": {k: v["label"] for k, v in MODES.items()},

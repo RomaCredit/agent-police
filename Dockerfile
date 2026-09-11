@@ -46,16 +46,11 @@ COPY agentpolice ./agentpolice
 # on any builder that does stage pruning.
 COPY --from=test /src/.tests-passed /app/.tests-passed
 
-# Ship the source the site offers for download, so the CLI path in the UI is
-# real. The PyPI name is deliberately not used: it is unregistered, and telling
-# people to pip install an unclaimed name is the very supply-chain shape this
-# tool exists to detect.
-RUN mkdir -p /app/agentpolice/server/static/download \
- && tar -czf /app/agentpolice/server/static/download/agent-police-src.tar.gz \
-      --transform 's,^,agent-police/,' pyproject.toml README.md constraints.txt agentpolice \
- && sha256sum /app/agentpolice/server/static/download/agent-police-src.tar.gz \
-      | cut -d" " -f1 > /app/agentpolice/server/static/download/SHA256 \
- && pip install --no-cache-dir -c constraints.txt . "uvicorn[standard]" fastapi \
+# The site used to serve a source tarball because the PyPI name was
+# unregistered and telling people to pip install an unclaimed name is the very
+# supply-chain shape this tool detects. The package is published now, so the
+# site points at PyPI and the tarball is gone.
+RUN pip install --no-cache-dir -c constraints.txt . "uvicorn[standard]" fastapi \
  && useradd --system --uid 10001 --home /app police \
  && mkdir -p /data && chown police:police /data
 
