@@ -36,3 +36,8 @@ agentpolice/server/static/download/
 # Host-specific deployment values.
 .env
 !.env.example
+
+# Per-developer permission grants. settings.json is the shared project
+# policy; settings.local.json is one person's accumulated approvals and
+# should not be imposed on anyone else.
+.claude/settings.local.json
