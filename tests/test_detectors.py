@@ -1,6 +1,6 @@
 """Unit tests for the passive detectors."""
 
-from agentpolice.detect.toolcall import classify, diff_argument, parse_installs
+from agentpolice.detect.toolcall import classify, parse_installs
 from agentpolice.detect.typosquat import assess_standalone, compare
 from agentpolice.detect.urls import extract_urls, same_owner
 from agentpolice.models import Expectation, ToolCall, Verdict
@@ -102,7 +102,10 @@ class TestTyposquat:
         assert compare("requests", "requests").suspicious is False
 
     def test_unicode_homoglyph(self):
-        verdict = compare("requests", "requеsts")  # cyrillic e
+        # The second argument contains CYRILLIC SMALL LETTER IE, which renders
+        # as a Latin e. That confusability is the subject of the test, so it is
+        # written as an escape rather than pasted where no reviewer would see it.
+        verdict = compare("requests", "requ\u0435sts")
         assert verdict.suspicious and verdict.technique == "homoglyph-unicode"
 
     def test_standalone_flags_near_miss(self):

@@ -8,7 +8,6 @@ the client configures only the first hop, and subsequent hops are invisible.
 from __future__ import annotations
 
 import statistics
-from typing import Any
 
 from ..canary import new_token
 from ..client import RouterClient

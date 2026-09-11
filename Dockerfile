@@ -17,11 +17,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /src
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md constraints.txt ./
 COPY agentpolice ./agentpolice
 COPY tests ./tests
 
-RUN pip install --no-cache-dir ".[dev]" "uvicorn[standard]" fastapi \
+RUN pip install --no-cache-dir -c constraints.txt ".[dev]" "uvicorn[standard]" fastapi \
  && if [ "$SKIP_TESTS" = "1" ]; then \
         echo "SKIPPED $(date -u +%FT%TZ)" > /src/.tests-passed; \
     else \
@@ -38,7 +38,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md constraints.txt ./
 COPY agentpolice ./agentpolice
 
 # Copying from the test stage is what forces it to run: BuildKit prunes stages
@@ -52,10 +52,10 @@ COPY --from=test /src/.tests-passed /app/.tests-passed
 # tool exists to detect.
 RUN mkdir -p /app/agentpolice/server/static/download \
  && tar -czf /app/agentpolice/server/static/download/agent-police-src.tar.gz \
-      --transform 's,^,agent-police/,' pyproject.toml README.md agentpolice \
+      --transform 's,^,agent-police/,' pyproject.toml README.md constraints.txt agentpolice \
  && sha256sum /app/agentpolice/server/static/download/agent-police-src.tar.gz \
       | cut -d" " -f1 > /app/agentpolice/server/static/download/SHA256 \
- && pip install --no-cache-dir . "uvicorn[standard]" fastapi \
+ && pip install --no-cache-dir -c constraints.txt . "uvicorn[standard]" fastapi \
  && useradd --system --uid 10001 --home /app police \
  && mkdir -p /data && chown police:police /data
 

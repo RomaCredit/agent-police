@@ -140,8 +140,7 @@ def normalize_base_url(base_url: str) -> str:
     if not parts.scheme:
         parts = urlsplit("https://" + base_url.strip())
     path = parts.path.rstrip("/")
-    if path.endswith("/v1"):
-        path = path[: -len("/v1")]
+    path = path.removesuffix("/v1")
     return urlunsplit((parts.scheme, parts.netloc, path, "", ""))
 
 
@@ -193,7 +192,7 @@ class RouterClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "RouterClient":
+    def __enter__(self) -> RouterClient:
         return self
 
     def __exit__(self, *exc: object) -> None:

@@ -121,7 +121,7 @@ def _decoy_value(kind: str, token: str) -> tuple[str, str]:
 class LocalCanaryProvider(CanaryProvider):
     """Issues canaries against a collector this process can query directly."""
 
-    def __init__(self, http_base: str, dns_zone: str | None, store: "CanaryStore"):
+    def __init__(self, http_base: str, dns_zone: str | None, store: CanaryStore):
         self.http_base = http_base.rstrip("/")
         self.dns_zone = dns_zone.strip(".") if dns_zone else None
         self.store = store

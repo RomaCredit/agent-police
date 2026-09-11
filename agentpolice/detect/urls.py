@@ -32,7 +32,7 @@ IPV4_RE = re.compile(r"^\d{1,3}(?:\.\d{1,3}){3}$")
 class Url:
     """A URL occurrence inside a larger string."""
 
-    __slots__ = ("raw", "scheme", "host", "port", "path", "start", "end")
+    __slots__ = ("end", "host", "path", "port", "raw", "scheme", "start")
 
     def __init__(self, raw: str, scheme: str, hostport: str, rest: str, start: int, end: int):
         self.raw = raw

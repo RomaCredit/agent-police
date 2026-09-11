@@ -9,7 +9,7 @@ is AC-2.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from ..models import AttackClass, Trial
 from .base import Probe, ProbeContext, register, shell_trial, url_trial

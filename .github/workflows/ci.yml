@@ -34,7 +34,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install
-        run: pip install ".[dev]" fastapi "uvicorn[standard]"
+        # -c constraints.txt: install the exact versions the image ships,
+        # so a green suite here means the same thing in production.
+        run: pip install -c constraints.txt ".[dev]" fastapi "uvicorn[standard]"
+
+      - name: Lint
+        run: |
+          pip install ruff
+          ruff check agentpolice tests
 
       - name: Test
         # One guard test resolves api.anthropic.com to prove the SSRF check

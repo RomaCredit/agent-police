@@ -41,9 +41,7 @@ class ControlResponse:
         if content_type.split(";")[0].strip() != self.content_type.split(";")[0].strip():
             return False
         # Same shell, modulo a path echoed into the body.
-        if abs(len(text) - self.body_len) > max(64, self.body_len * 0.1):
-            return False
-        return True
+        return abs(len(text) - self.body_len) <= max(64, self.body_len * 0.1)
 
 
 @dataclass(slots=True)
@@ -115,9 +113,8 @@ def check_matches(check: dict[str, Any], status: int | None,
         # Indistinguishable from the catch-all: this path does not exist.
         return None
 
-    if "content_type" in check:
-        if check["content_type"] not in content_type.lower():
-            return None
+    if "content_type" in check and check["content_type"] not in content_type.lower():
+        return None
 
     if "status" in check:
         if status != check["status"]:

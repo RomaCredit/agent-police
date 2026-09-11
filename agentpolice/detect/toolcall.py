@@ -105,7 +105,7 @@ def parse_installs(command: str) -> list[InstallSpec]:
                     continue
                 if tok.startswith("-"):
                     continue
-                if tok.startswith(".") or tok.startswith("/") or "://" in tok:
+                if tok.startswith((".", "/")) or "://" in tok:
                     continue  # local path or direct URL install
                 name = VERSION_SEP_RE.split(tok)[0].strip()
                 if name:

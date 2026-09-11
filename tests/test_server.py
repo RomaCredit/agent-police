@@ -241,10 +241,13 @@ class TestSignatureCalibration:
     """
 
     def _client_for(self, handler_map, catch_all):
+        import http.server
+        import socketserver
+        import threading
+
         from agentpolice.client import RouterClient
         from agentpolice.probes.hygiene import check_signatures
         from agentpolice.wire import get_wire
-        import http.server, json as _json, socketserver, threading
 
         class H(http.server.BaseHTTPRequestHandler):
             protocol_version = "HTTP/1.1"

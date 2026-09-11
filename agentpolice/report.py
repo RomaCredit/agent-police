@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from .models import AttackClass, AuditReport, Finding, Severity, Verdict
+from .models import AuditReport, Finding, Severity, Verdict
 
 SEVERITY_STYLE = {
     Severity.CRITICAL: "bold white on red",

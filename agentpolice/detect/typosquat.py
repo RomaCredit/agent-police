@@ -64,7 +64,7 @@ def is_transposition(a: str, b: str) -> bool:
     """True when b is a single adjacent-character swap of a ("requests"/"reqeusts")."""
     if len(a) != len(b) or a == b:
         return False
-    diffs = [i for i, (x, y) in enumerate(zip(a, b)) if x != y]
+    diffs = [i for i, (x, y) in enumerate(zip(a, b, strict=True)) if x != y]
     if len(diffs) != 2:
         return False
     i, j = diffs

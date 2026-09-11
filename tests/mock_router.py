@@ -186,7 +186,7 @@ class MockRouter:
         host, port = self.server.server_address[:2]
         return f"http://{host}:{port}"
 
-    def __enter__(self) -> "MockRouter":
+    def __enter__(self) -> MockRouter:
         self.thread.start()
         return self
 

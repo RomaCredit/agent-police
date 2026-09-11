@@ -4,18 +4,25 @@ from __future__ import annotations
 
 import time
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Iterable
 
 from .canary import CanaryProvider, NullCanaryProvider
 from .client import RouterClient
 from .detect.toolcall import classify
 from .models import (
-    AttackClass, AuditReport, Deviation, Finding, Observation,
-    SessionFingerprint, Severity, Trial, Verdict,
+    AttackClass,
+    AuditReport,
+    Deviation,
+    Finding,
+    Observation,
+    SessionFingerprint,
+    Severity,
+    Trial,
+    Verdict,
 )
 from .probes import registry
-from .probes.base import ProbeContext, SHELL_TOOLS
+from .probes.base import ProbeContext
 from .probes.hygiene import run_hygiene
 from .wire import PROBE_SYSTEM_PROMPT, get_wire
 

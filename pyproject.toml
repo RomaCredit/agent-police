@@ -28,3 +28,28 @@ agentpolice = ["data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "PIE", "RUF", "FURB"]
+ignore = [
+    # The auditor talks to endpoints that are assumed hostile. A broad except
+    # around every network and parsing boundary is the design: a probe that
+    # raises on a malformed response loses the evidence it was sent to collect.
+    # Each one records the error and continues.
+    "BLE001",
+    # Long explanatory comments and evidence strings are the point in a tool
+    # whose output has to justify a security finding.
+    "E501",
+    # str+Enum rather than StrEnum is deliberate: StrEnum changes how a member
+    # formats in an f-string, and these values are rendered into reports and
+    # compared against JSON from earlier runs.
+    "UP042",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Test fixtures deliberately build odd payloads and import inside functions.
+"tests/*" = ["B011", "PLR2004", "RUF059"]

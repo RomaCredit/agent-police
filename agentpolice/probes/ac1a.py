@@ -8,7 +8,7 @@ attacker pre-registers a near-homograph for.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from ..canary import new_token
 from ..models import AttackClass, Trial

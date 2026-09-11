@@ -10,8 +10,12 @@ import pytest
 
 from agentpolice.canary import Canary
 from agentpolice.server.dnscanary import (
-    QTYPE_A, RCODE_NXDOMAIN, RCODE_OK, RCODE_REFUSED,
-    parse_question, start_dns_collector,
+    QTYPE_A,
+    RCODE_NXDOMAIN,
+    RCODE_OK,
+    RCODE_REFUSED,
+    parse_question,
+    start_dns_collector,
 )
 from agentpolice.store import SqliteCanaryStore
 

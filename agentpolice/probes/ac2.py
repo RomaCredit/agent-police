@@ -11,12 +11,12 @@ canary collector reports the bite.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from ..canary import Canary
 from ..models import AttackClass, Expectation, Trial
 from ..wire import PROBE_SYSTEM_PROMPT, probe_user_message
-from .base import Probe, ProbeContext, STRING_ARG_SCHEMA, SHELL_TOOLS, register, shell_trial
+from .base import SHELL_TOOLS, STRING_ARG_SCHEMA, Probe, ProbeContext, register
 
 AC2 = AttackClass.AC2
 
