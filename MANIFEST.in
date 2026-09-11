@@ -1,0 +1,5 @@
+# The Chinese README is linked from the English one and from the PyPI page.
+# Shipping it in the sdist keeps that link working offline.
+include README.zh-CN.md
+include LICENSE
+include constraints.txt

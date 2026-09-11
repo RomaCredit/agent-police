@@ -17,7 +17,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /src
 
-COPY pyproject.toml README.md constraints.txt ./
+COPY pyproject.toml README.md README.zh-CN.md constraints.txt ./
 COPY agentpolice ./agentpolice
 COPY tests ./tests
 
@@ -38,7 +38,7 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY pyproject.toml README.md constraints.txt ./
+COPY pyproject.toml README.md README.zh-CN.md constraints.txt ./
 COPY agentpolice ./agentpolice
 
 # Copying from the test stage is what forces it to run: BuildKit prunes stages
