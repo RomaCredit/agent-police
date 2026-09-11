@@ -18,7 +18,7 @@
    "id": "litellm",
    "name": "LiteLLM proxy",
    "confidence": "high",
-   "note": "Open-source router; the March 2026 dependency-confusion compromise gave the injected code write access to every transiting request.",
+   "note": "Open-source router; the March 2026 dependency-confusion compromise gave the injected code write access to every transiting request. Calibrated against a live ghcr.io/berriai/litellm instance: /openapi.json carries info.title 'LiteLLM API', /health/readiness returns a status object, /health/liveliness returns JSON \"I'm alive!\". /v1/model/info is not used as a check because an unconfigured proxy answers it with 500.",
    "checks": [
     {
      "path": "/openapi.json",
@@ -28,15 +28,16 @@
      }
     },
     {
-     "path": "/v1/model/info",
+     "path": "/health/readiness",
      "status": 200,
      "content_type": "json",
-     "json_has_key": "data"
+     "json_has_key": "status"
     },
     {
      "path": "/health/liveliness",
      "status": 200,
-     "content_type": "text/plain"
+     "content_type": "json",
+     "body_contains": "alive"
     }
    ]
   },
