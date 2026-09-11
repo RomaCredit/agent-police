@@ -21,11 +21,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 3.12 is what the image ships. 3.14 is what the project was developed
-        # on. Both are tested so a green suite means the same thing in either
-        # place - the drift that motivated this job was a suite passing on 3.14
-        # while production ran 3.12 untested.
-        python-version: ["3.12", "3.14"]
+        # Every version requires-python claims. 3.12 is what the image ships,
+        # 3.14 is what the project is developed on; the drift that motivated
+        # this job was a suite passing on one while production ran the other.
+        # 3.10 and 3.11 are here so the floor in pyproject.toml is a tested
+        # claim rather than an assumed one.
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
@@ -34,9 +35,16 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install
-        # -c constraints.txt: install the exact versions the image ships,
-        # so a green suite here means the same thing in production.
-        run: pip install -c constraints.txt ".[dev]" fastapi "uvicorn[standard]"
+        # On 3.12 pin to constraints.txt, the exact set the image ships, so a
+        # green suite there means the same thing in production. On the other
+        # versions install the loose ranges from pyproject.toml, which is what
+        # someone who pip-installs the package actually gets.
+        run: |
+          if [ "${{ matrix.python-version }}" = "3.12" ]; then
+            pip install -c constraints.txt ".[dev]" fastapi "uvicorn[standard]"
+          else
+            pip install ".[dev]" fastapi "uvicorn[standard]"
+          fi
 
       - name: Lint
         run: |

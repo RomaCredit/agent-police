@@ -1,0 +1,89 @@
+name: release
+
+# Publishes to PyPI on a version tag, using trusted publishing (OIDC).
+#
+# No API token exists anywhere: no repository secret, no token in a password
+# manager, nothing to leak or rotate. GitHub proves the workflow's identity to
+# PyPI directly. For a project whose subject is credential exposure, a release
+# path with no long-lived credential in it is the only defensible one.
+#
+# One-time setup on PyPI, before the first tag:
+#   https://pypi.org/manage/account/publishing/
+#     PyPI Project Name : agent-police
+#     Owner             : RomaCredit
+#     Repository name   : agent-police
+#     Workflow name     : release.yml
+#     Environment name  : pypi
+#
+# Then release with:
+#   git tag -a v0.1.0 -m "agent-police 0.1.0" && git push origin v0.1.0
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: pip install ".[dev]" fastapi "uvicorn[standard]"
+      - name: Test
+        run: pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build
+        run: |
+          pip install build twine
+          python -m build
+          twine check dist/*
+
+      - name: Tag must match the version in pyproject
+        # A tag that disagrees with the packaged version publishes something
+        # nobody can reproduce from the tag.
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG=$(python -c "import tomllib,pathlib; \
+            print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "tag=$TAG pyproject=$PKG"
+          test "$TAG" = "$PKG"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # The OIDC token trusted publishing exchanges for an upload token.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
