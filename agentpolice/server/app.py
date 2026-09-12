@@ -137,6 +137,16 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
     def index() -> FileResponse:
         return FileResponse(STATIC_DIR / "index.html")
 
+    @app.get("/gate", include_in_schema=False)
+    def gate() -> FileResponse:
+        """agent-police-gate: the client-side half of the same problem.
+
+        Served from this host rather than a separate site so the two tools
+        share one canonical place to link at, and so a reader who arrives
+        asking "is my relay tampering" finds the inline defence too.
+        """
+        return FileResponse(STATIC_DIR / "gate.html")
+
     @app.get("/robots.txt", include_in_schema=False)
     def robots() -> PlainTextResponse:
         """Index the page; keep crawlers out of everything with side effects.
@@ -149,6 +159,7 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
         return PlainTextResponse(
             "User-agent: *\n"
             "Allow: /$\n"
+            "Allow: /gate\n"
             "Allow: /static/\n"
             "Disallow: /api/\n"
             "Disallow: /c/\n"
@@ -165,6 +176,8 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
             '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
             f"  <url><loc>{host}/</loc><changefreq>weekly</changefreq>"
             "<priority>1.0</priority></url>\n"
+            f"  <url><loc>{host}/gate</loc><changefreq>weekly</changefreq>"
+            "<priority>0.9</priority></url>\n"
             "</urlset>\n"
         )
         return Response(content=body, media_type="application/xml")

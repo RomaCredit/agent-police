@@ -32,6 +32,19 @@ def html():
 
 
 @pytest.fixture(scope="module")
+def gate_html():
+    return (STATIC / "gate.html").read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def gate_ld(gate_html):
+    block = re.search(
+        r'<script type="application/ld\+json">(.*?)</script>', gate_html, re.DOTALL)
+    assert block, "no JSON-LD block on the gate page"
+    return json.loads(block.group(1))
+
+
+@pytest.fixture(scope="module")
 def ld(html):
     block = re.search(
         r'<script type="application/ld\+json">(.*?)</script>', html, re.DOTALL)
@@ -58,7 +71,8 @@ class TestCrawlerFiles:
         assert "xml" in res.headers["content-type"]
         root = ET.fromstring(res.text)
         locs = [e.text for e in root.iter("{http://www.sitemaps.org/schemas/sitemap/0.9}loc")]
-        assert locs == ["https://security.example.com/"]
+        assert locs == ["https://security.example.com/",
+                        "https://security.example.com/gate"]
 
     def test_crawler_files_follow_the_configured_host(self):
         """A deployment on another host must not advertise this one."""
@@ -119,3 +133,48 @@ class TestStructuredData:
         answers = " ".join(i["acceptedAnswer"]["text"] for i in faq["mainEntity"])
         assert "无法证明" in answers
         assert "绝不会" in answers  # nothing returned by the endpoint is executed
+
+
+class TestGatePage:
+    """The /gate page describes a second tool, so its claims are pinned too."""
+
+    def test_gate_page_is_served(self, client):
+        res = client.get("/gate")
+        assert res.status_code == 200
+        assert "agent-police-gate" in res.text
+
+    def test_robots_allows_the_gate_page(self, client):
+        assert "Allow: /gate" in client.get("/robots.txt").text
+
+    def test_has_its_own_canonical(self, gate_html):
+        assert '<link rel="canonical" href="https://security.romaapi.com/gate">' in gate_html
+
+    def test_points_at_the_right_package_and_repo(self, gate_ld):
+        app = next(n for n in gate_ld["@graph"] if n["@type"] == "SoftwareApplication")
+        assert app["name"] == "agent-police-gate"
+        assert app["downloadUrl"] == "https://pypi.org/project/agent-police-gate/"
+        assert app["codeRepository"] == "https://github.com/RomaCredit/agent-police-gate"
+
+    def test_faq_questions_are_actually_on_the_page(self, gate_ld, gate_html):
+        faq = next(n for n in gate_ld["@graph"] if n["@type"] == "FAQPage")
+        assert len(faq["mainEntity"]) >= 5
+        for item in faq["mainEntity"]:
+            assert item["name"] in gate_html, f"FAQ question not rendered: {item['name']}"
+
+    def test_the_limits_survive_in_structured_data(self, gate_ld):
+        """The two claims most worth losing to an optimisation pass.
+
+        A page selling a security tool has every incentive to drop "it cannot
+        see what the model actually said" and "an adaptive attacker bypasses
+        this 100% of the time". Both are pinned here.
+        """
+        faq = next(n for n in gate_ld["@graph"] if n["@type"] == "FAQPage")
+        answers = " ".join(i["acceptedAnswer"]["text"] for i in faq["mainEntity"])
+        assert "从来没见过模型真正产出的那一条" in answers
+        assert "100% 失效" in answers
+        assert "社区规则永不拦截" in answers
+
+    def test_page_states_code_does_not_auto_update(self, gate_html):
+        # The fullwidth comma is correct Chinese punctuation, and the phrase
+        # is asserted verbatim because it is the security claim itself.
+        assert "规则自动更新，代码不自动更新" in gate_html  # noqa: RUF001
