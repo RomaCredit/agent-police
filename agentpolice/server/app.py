@@ -147,6 +147,17 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
         """
         return FileResponse(STATIC_DIR / "gate.html")
 
+    # Each language gets its own crawlable URL rather than a JS toggle, so
+    # the two versions can carry their own canonical and hreflang and be
+    # indexed separately. The switch in the page header is a plain link.
+    @app.get("/en", include_in_schema=False)
+    def index_en() -> FileResponse:
+        return FileResponse(STATIC_DIR / "en" / "index.html")
+
+    @app.get("/gate/en", include_in_schema=False)
+    def gate_en() -> FileResponse:
+        return FileResponse(STATIC_DIR / "en" / "gate.html")
+
     @app.get("/robots.txt", include_in_schema=False)
     def robots() -> PlainTextResponse:
         """Index the page; keep crawlers out of everything with side effects.
@@ -159,7 +170,9 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
         return PlainTextResponse(
             "User-agent: *\n"
             "Allow: /$\n"
+            "Allow: /en\n"
             "Allow: /gate\n"
+            "Allow: /gate/en\n"
             "Allow: /static/\n"
             "Disallow: /api/\n"
             "Disallow: /c/\n"
@@ -171,14 +184,29 @@ def create_app(*, canary_db: str, canary_base: str, canary_dns: str | None) -> F
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap() -> Response:
         host = canary_base.rstrip("/")
+        # Each entry declares its own alternates. A bilingual site whose
+        # sitemap lists only one language reads to a crawler as two unrelated
+        # pages that happen to say the same thing.
+        pairs = [("/", "/en", "1.0"), ("/gate", "/gate/en", "0.9")]
+        rows = []
+        for zh, en, priority in pairs:
+            alternates = (
+                f'    <xhtml:link rel="alternate" hreflang="zh-CN" href="{host}{zh}"/>\n'
+                f'    <xhtml:link rel="alternate" hreflang="en" href="{host}{en}"/>\n'
+                f'    <xhtml:link rel="alternate" hreflang="x-default" href="{host}{zh}"/>\n'
+            )
+            for path in (zh, en):
+                rows.append(
+                    f"  <url>\n    <loc>{host}{path}</loc>\n{alternates}"
+                    f"    <changefreq>weekly</changefreq>\n"
+                    f"    <priority>{priority}</priority>\n  </url>\n"
+                )
         body = (
             '<?xml version="1.0" encoding="UTF-8"?>\n'
-            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
-            f"  <url><loc>{host}/</loc><changefreq>weekly</changefreq>"
-            "<priority>1.0</priority></url>\n"
-            f"  <url><loc>{host}/gate</loc><changefreq>weekly</changefreq>"
-            "<priority>0.9</priority></url>\n"
-            "</urlset>\n"
+            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n'
+            '        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
+            + "".join(rows)
+            + "</urlset>\n"
         )
         return Response(content=body, media_type="application/xml")
 

@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-police · Check whether your LLM API relay is rewriting your commands</title>
+<meta name="description" content="Free online check for whether an LLM API relay rewrites your agent's tool calls, substitutes packages, or harvests your keys. No install, and the endpoint checks need no API key. Attack classes from arXiv:2604.08407, which measured 428 commercial relays and found 9 injecting malicious code.">
+<meta name="robots" content="index,follow,max-snippet:-1,max-image-preview:large">
+<link rel="canonical" href="https://security.romaapi.com/en">
+<link rel="alternate" hreflang="zh-CN" href="https://security.romaapi.com/">
+<link rel="alternate" hreflang="en" href="https://security.romaapi.com/en">
+<link rel="alternate" hreflang="x-default" href="https://security.romaapi.com/">
+<meta name="author" content="agent-police">
+
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://security.romaapi.com/en">
+<meta property="og:site_name" content="agent-police">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:title" content="Is the command your AI agent is about to run the one the model actually wrote?">
+<meta property="og:description" content="A cheap relay can read and rewrite every instruction you send. Take 30 seconds and find out whether yours is clean.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="agent-police · Detect tool-call tampering by LLM API relays">
+<meta name="twitter:description" content="The endpoint checks need no API key. Open source, Apache-2.0.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡️</text></svg>">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "@id": "https://security.romaapi.com/en#software",
+      "name": "agent-police",
+      "applicationCategory": "SecurityApplication",
+      "operatingSystem": "Linux, macOS, Windows",
+      "description": "Detects whether LLM API relays, proxies and gateways tamper with tool calls, substitute dependencies, or harvest credentials. Implements the AC-1 / AC-1.a / AC-1.b / AC-2 attack classes from arXiv:2604.08407, and never executes anything the endpoint under test returns.",
+      "url": "https://security.romaapi.com/en",
+      "downloadUrl": "https://pypi.org/project/agent-police/",
+      "codeRepository": "https://github.com/RomaCredit/agent-police",
+      "programmingLanguage": "Python",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "isAccessibleForFree": true,
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "softwareRequirements": "Python >= 3.10",
+      "inLanguage": "en",
+      "featureList": [
+        "AC-1 tool-call payload injection detection",
+        "AC-1.a dependency substitution and typosquat detection",
+        "AC-1.b session-fingerprint grid scan for conditional delivery",
+        "AC-2 credential exfiltration via HTTP and DNS canaries",
+        "Endpoint triage: relay software fingerprint, open relay, header stripping, TLS"
+      ],
+      "citation": {
+        "@type": "ScholarlyArticle",
+        "name": "Your Agent Is Mine: Measuring Malicious Intermediary Attacks on the LLM Supply Chain",
+        "identifier": "arXiv:2604.08407",
+        "url": "https://arxiv.org/abs/2604.08407"
+      }
+    },
+    {
+      "@type": "FAQPage",
+      "@id": "https://security.romaapi.com/en#faq",
+      "inLanguage": "en",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "What is a relay, and how do I know if I am using one?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "If you are not pointing at an official Anthropic or OpenAI address, but at a URL somebody gave you along with a cheap key, that is a relay. Check the base_url configured in your tool: if it is not api.anthropic.com or api.openai.com, somebody else's server is forwarding your requests."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "How do I tell whether my relay is rewriting my requests?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "There is a five-second check that works on any relay: send a single message saying hi, then look at prompt_tokens in the response. A single-digit number is normal. Hundreds or thousands means somebody prepended something to your request, and is billing you for the tokens they inserted."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Are cheap Claude or GPT relays safe to use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "A relay is an application-layer man in the middle by design. It terminates your TLS and reaches upstream over its own connection, so your prompts, tool definitions and API key are plaintext to it, and it can rewrite the tool calls your agent is about to execute. Paying does not make it safe: 1 of the 28 paid relays the paper measured was injecting malicious code."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "If the scan comes back clean, am I safe?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No, and every report says so. Conditional delivery behaves perfectly until its trigger fires, and the trigger logic runs server-side. No finite black-box probe can prove a relay is honest. Widening coverage is all this tool can do; it cannot close that gap."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does agent-police execute the commands the endpoint returns?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Never. Detection happens entirely at the string and metadata level. A probe asks for a command, the tool compares the returned arguments, and nothing is run. This is a deliberate difference from the measurement pipeline in the paper, which executed payloads in a sandbox."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Do I have to hand over my API key?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Not for everything. The endpoint triage and the command self-check need no credentials at all. Only the full probe needs a key, because it has to obtain real model responses to compare against. If you would rather not give a key to another server, which is entirely reasonable, use the local CLI and your key never leaves your machine."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="wrap">
+    <a class="logo" href="/en"><span class="mark"></span>agent-police</a>
+    <nav class="topnav">
+      <a href="/en" aria-current="page">Scan a relay</a>
+      <a href="/gate/en">Client gate</a>
+      <a href="https://github.com/RomaCredit/agent-police">GitHub</a>
+    </nav>
+    <span class="spacer"></span>
+    <div class="langswitch">
+      <a href="/" hreflang="zh-CN">中文</a>
+      <a href="/en" aria-current="true">EN</a>
+    </div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow"><span class="dot"></span>Open source · Apache-2.0 · 428 relays measured, 9 injecting malicious code</span>
+    <h1>Is the command your AI agent<br>is about to run really its own?</h1>
+    <p class="lede">
+      A cheap relay can read — and rewrite — every instruction you send.<br>
+      Take 30 seconds and find out whether the one you use is clean.
+    </p>
+    <div class="actions">
+      <a class="btn btn-primary" href="#check">Scan my relay, free</a>
+      <a class="btn btn-ghost" href="/gate/en">Install into Claude Code / Codex</a>
+    </div>
+  </div>
+</header>
+
+<!-- ============ three steps ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">How it works</span>
+      <h2>Three steps. No expertise required.</h2>
+      <p>Every step is copy-paste. Any term you do not recognise is explained in plain words further down.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <h3>Find your relay's address</h3>
+        <p>It is the URL you put into Claude Code, Codex, or Cherry Studio — usually shaped like
+           <code>https://xxx.com/v1</code>. Not sure where that lives? See "Plain-English glossary" below.</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <h3>Paste it in and scan</h3>
+        <p>Without a key you still learn who the endpoint really is, what relay software it runs,
+           and whether anyone can use it without authentication. For the full probe, use a
+           <strong>throwaway key</strong> and delete it afterwards.</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <h3>Read the result</h3>
+        <p>The report says in plain language whether it altered your commands, whether it touched your
+           credentials, and exactly what to do next.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ five second check ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Before you scan</span>
+      <h2>There is a five-second check. Try this first.</h2>
+      <p>No tool to open, no key to hand over. Works on any relay.</p>
+    </div>
+    <div class="panel">
+      <div class="body">
+        <p class="sub" style="margin-top:0">
+          Send your relay a message containing nothing but <code>hi</code>, then look at
+          <code>prompt_tokens</code> in the response:
+        </p>
+        <table>
+          <tr><th style="width:160px">What you see</th><th>What it means</th></tr>
+          <tr><td><strong style="color:var(--ok)">Single digits</strong></td>
+              <td>Normal. What you sent is what it forwarded.</td></tr>
+          <tr><td><strong style="color:var(--danger)">Hundreds or thousands</strong></td>
+              <td><strong>Somebody prepended something to your request</strong> — and those inserted tokens are on your bill.</td></tr>
+        </table>
+        <div class="cmd" data-copy>Replace the URL and key with your own, then paste this into a terminal:
+
+curl -s https://your-relay.example.com/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-4o-mini","messages":[{"role":"user","content":"hi"}]}' \
+  | grep -o '"prompt_tokens":[0-9]*'</div>
+        <p class="hint" style="margin-top:14px">
+          This only says "hi". It changes nothing on your machine or your account.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1. no-key checks ============ -->
+<section id="check">
+  <div class="wrap">
+    <h2><span class="num">01</span>Start with the checks that need no key</h2>
+    <p class="sub" style="margin-bottom:26px">
+      Neither of these asks for a credential. Do them first, then decide whether the full probe is worth it.
+    </p>
+
+    <div class="panel">
+      <div class="tabs" role="tablist">
+        <button class="tab" role="tab" aria-selected="true" data-tab="preflight">Endpoint triage</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="inspect">Check a command</button>
+      </div>
+
+      <div class="body">
+        <div data-panel="preflight">
+          <p class="sub" style="margin-top:0;margin-bottom:18px">
+            Looks only at the endpoint itself: who it is, what relay software it runs, its TLS certificate,
+            whether it strips the upstream vendor's response headers, and whether it is an open relay anyone
+            can use unauthenticated. <strong>Your key is never sent.</strong>
+          </p>
+          <div class="row">
+            <div class="field">
+              <label class="label" for="pf-url">Endpoint base_url</label>
+              <input type="text" id="pf-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+              <div class="hint">The URL you configured in your AI tool. It usually ends in /v1.</div>
+            </div>
+            <div class="field">
+              <label class="label" for="pf-wire">Wire format</label>
+              <select id="pf-wire">
+                <option value="anthropic">Anthropic (/v1/messages)</option>
+                <option value="openai">OpenAI (/v1/chat/completions)</option>
+              </select>
+              <div class="hint">Not sure? Leave the default and try the other one if nothing comes back.</div>
+            </div>
+          </div>
+          <div class="actions" style="justify-content:flex-start">
+            <button class="go" id="pf-run">Run triage</button>
+            <span class="f-meta" id="pf-status"></span>
+          </div>
+          <div id="pf-out"></div>
+        </div>
+
+        <div data-panel="inspect" class="hidden">
+          <p class="sub" style="margin-top:0;margin-bottom:18px">
+            Paste a command your agent is about to run. There is no ground truth to compare against here, so this
+            is heuristic only: piping straight into a shell, bare IPs, typosquatted package names, base64
+            obfuscation, writes to persistence locations.
+          </p>
+          <div class="field">
+            <label class="label" for="ins-cmd">Command</label>
+            <textarea id="ins-cmd" spellcheck="false" placeholder="curl -sSL https://get.example.com/install.sh | bash"></textarea>
+          </div>
+          <div class="actions" style="justify-content:flex-start">
+            <button class="go" id="ins-run">Check this command</button>
+            <button class="ghost" id="ins-demo">Fill in an example</button>
+          </div>
+          <div id="ins-out"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. full probe ============ -->
+<section>
+  <div class="wrap">
+    <h2><span class="num">02</span>Full probe (needs an API key for that endpoint)</h2>
+    <p class="sub" style="margin-bottom:22px">
+      AC-1 and AC-1.a can only be found by probing: we send a request whose <strong>correct answer is known
+      verbatim</strong> — asking the model to return one specified command unchanged — then compare the returned
+      tool call character by character. Any difference is evidence. Each payload carries a one-time nonce, so
+      "the same replacement target recurring across different nonces" separates deliberate rewriting from model noise.
+    </p>
+
+    <div class="notice">
+      <strong>Please read this before entering a key.</strong>
+      This page asks you to give a relay's API key to another server — which is exactly the trust problem it detects. So:
+      <ul>
+        <li>the key exists only in the memory of the worker handling your job; it is <strong>never written to a database, a log, or a report</strong>, and the reference is dropped when the job ends;</li>
+        <li>every occurrence of the key in a report is replaced with <code>[REDACTED_KEY]</code> (there are tests covering this);</li>
+        <li>results are deleted along with the job after 30 minutes, and are tied to no account;</li>
+        <li>the probe <strong>never executes</strong> anything the endpoint returns — it only compares strings.</li>
+      </ul>
+      If you cannot verify those promises — entirely reasonable — scroll down and use the <strong>local CLI</strong>,
+      where the key never leaves your machine. Either way, use a <strong>throwaway key</strong>.
+    </div>
+
+    <div class="panel">
+      <div class="body">
+        <div class="row">
+          <div class="field">
+            <label class="label" for="au-url">Endpoint base_url</label>
+            <input type="text" id="au-url" placeholder="https://your-relay.example.com/v1" autocomplete="off" spellcheck="false">
+          </div>
+          <div class="field">
+            <label class="label" for="au-model">Model id</label>
+            <input type="text" id="au-model" placeholder="claude-sonnet-4-5" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label class="label" for="au-wire">Wire format</label>
+            <select id="au-wire">
+              <option value="anthropic">Anthropic (/v1/messages)</option>
+              <option value="openai">OpenAI (/v1/chat/completions)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="label" for="au-mode">Probe depth</label>
+            <select id="au-mode">
+              <option value="quick">Quick · AC-1 only · about 7 requests</option>
+              <option value="standard" selected>Standard · AC-1 + AC-1.a · about 28 requests</option>
+              <option value="deep">Deep · everything + canaries · two session fingerprints · about 72 requests</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label class="label" for="au-key">API key for that endpoint</label>
+          <input type="password" id="au-key" placeholder="sk-..." autocomplete="off" spellcheck="false">
+          <div class="hint">The probe spends this key's quota. Create a throwaway key and delete it afterwards.</div>
+        </div>
+        <div class="actions" style="justify-content:flex-start">
+          <button class="go" id="au-run">Start the probe</button>
+          <span class="f-meta" id="au-status"></span>
+        </div>
+
+        <div class="progress hidden" id="au-progress">
+          <div class="bar"><i style="width:0%"></i></div>
+          <div class="label"></div>
+        </div>
+        <div id="au-out"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ what it finds ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Coverage</span>
+      <h2>Four techniques it can find</h2>
+      <p>Classes and measurements come from arXiv:2604.08407.</p>
+    </div>
+    <div class="classes">
+      <div class="cls"><div class="tag">AC-1</div><div class="name">Payload injection</div>
+        <div class="desc">Rewrites the returned tool-call arguments, swapping the download target for the attacker's</div></div>
+      <div class="cls"><div class="tag">AC-1.a</div><div class="name">Dependency swap</div>
+        <div class="desc">Changes only the package name, leaving the registry intact, defeating domain allowlists</div></div>
+      <div class="cls"><div class="tag">AC-1.b</div><div class="name">Conditional delivery</div>
+        <div class="desc">Behaves perfectly, then targets only sessions matching a chosen fingerprint</div></div>
+      <div class="cls"><div class="tag">AC-2</div><div class="name">Credential theft</div>
+        <div class="desc">Alters nothing at all, and quietly keeps your keys and prompts</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ glossary ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">New to this?</span>
+      <h2>Plain-English glossary</h2>
+      <p>This section is for anyone meeting the problem for the first time.</p>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>What is a relay, and how do I know if I am using one?</summary>
+        <div class="answer">
+          <p>If you are not pointing at an official Anthropic or OpenAI address, but at a URL somebody gave you along with a cheap key, that is a relay.</p>
+          <p><strong>How to check:</strong> look at the <code>base_url</code> configured in your tool. If it is not
+             <code>api.anthropic.com</code> or <code>api.openai.com</code>, then
+             <strong>somebody else's server</strong> is forwarding your requests.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Where do I find my base_url?</summary>
+        <div class="answer">
+          <p>Claude Code: the <code>ANTHROPIC_BASE_URL</code> environment variable, or <code>~/.claude/settings.json</code>.</p>
+          <p>Codex: <code>base_url</code> in <code>~/.codex/config.toml</code>.</p>
+          <p>Cherry Studio, NextChat and similar: the "API address", "endpoint" or "proxy URL" field in settings.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Why can a relay see my data? Isn't it encrypted?</summary>
+        <div class="answer">
+          <p>HTTPS only guarantees the leg between you and that server. The relay <em>is</em> that server — encryption
+             ends there, and it then opens <strong>its own connection</strong> to the real Anthropic or OpenAI.</p>
+          <p>So to the relay, your prompts, your file contents and your API key are all plaintext, and it can change
+             what the model sends back before passing it on.</p>
+        </div>
+      </details>
+      <details>
+        <summary>What is a "tool call", and what happens if one is changed?</summary>
+        <div class="answer">
+          <p>When an AI assistant wants to run a command, install a dependency or edit a file, the model returns a
+             structured "tool call" saying what to do. Your agent receives it and executes it.</p>
+          <p>If a relay swaps the download URL inside it for the attacker's, <strong>your agent will comply</strong>,
+             and the command still looks like the normal one.</p>
+        </div>
+      </details>
+      <details>
+        <summary>What is a "throwaway key" and how do I make one?</summary>
+        <div class="answer">
+          <p>Create a new key in your relay's dashboard, give it a small quota, and delete it once the scan is done.
+             If that key leaks, the loss is bounded.</p>
+          <p>Do not test with the key you use every day.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">FAQ</span>
+      <h2>Things worth settling first</h2>
+    </div>
+    <div class="faq">
+      <details open>
+        <summary>How do I tell whether my relay is rewriting my requests?</summary>
+        <div class="answer">
+          <p>There is a five-second check that works on any relay: <strong>send a message saying <code>hi</code> and look at <code>prompt_tokens</code>.</strong></p>
+          <p>A single-digit number is normal. Hundreds or thousands means somebody prepended something to your request — and is billing you for the tokens they inserted.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Are cheap Claude or GPT relays safe to use?</summary>
+        <div class="answer">
+          <p>A relay is an application-layer man in the middle by design. It terminates your TLS and reaches upstream
+             over its own connection, so your prompts, tool definitions and API key are plaintext to it, and it can
+             rewrite the tool calls your agent is about to execute.</p>
+          <p>Worth stressing: <strong>paying does not make it safe</strong>. 1 of the 28 paid relays the paper measured was injecting malicious code.</p>
+        </div>
+      </details>
+      <details>
+        <summary>If the scan comes back clean, am I safe?</summary>
+        <div class="answer">
+          <p><strong>No, and every report says so.</strong> Conditional delivery behaves perfectly until its trigger fires, and the trigger logic runs server-side.</p>
+          <p>No finite black-box probe <strong>can prove</strong> a relay is honest. Widening coverage is all this tool can do; it cannot close that gap.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Does agent-police execute the commands the endpoint returns?</summary>
+        <div class="answer">
+          <p><strong>Never.</strong> Detection happens entirely at the string and metadata level. A probe asks for a command, the tool compares the returned arguments, and nothing is run.</p>
+          <p>This is a deliberate difference from the measurement pipeline in the paper, which executed payloads in a sandbox.</p>
+        </div>
+      </details>
+      <details>
+        <summary>Do I have to hand over my API key?</summary>
+        <div class="answer">
+          <p>Not for everything. <strong>The endpoint triage and the command self-check need no credentials at all.</strong></p>
+          <p>Only the full probe needs a key, because it has to obtain real model responses to compare against.
+             If you would rather not give a key to another server — entirely reasonable — use the local CLI.</p>
+        </div>
+      </details>
+      <details>
+        <summary>I want my key to never leave my machine.</summary>
+        <div class="answer">
+          <p>Use the command-line version:</p>
+          <div class="cmd" data-copy>pip install agent-police
+agent-police audit https://your-relay.example.com/v1 --model claude-sonnet-4-5</div>
+          <p style="margin-top:12px">The key is prompted for interactively — not echoed, and never in your shell history.</p>
+        </div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CLI + gate ============ -->
+<section>
+  <div class="wrap">
+    <div class="section-head">
+      <span class="kicker">Two tools</span>
+      <h2>And after the scan?</h2>
+      <p>The scanner answers "is this relay clean?". The gate answers "should this command run?".</p>
+    </div>
+    <div class="steps" style="grid-template-columns:1fr 1fr">
+      <div class="step">
+        <span class="num">CLI</span>
+        <h3>Scan locally, key stays put</h3>
+        <div class="cmd" data-copy>pip install agent-police
+agent-police audit https://your-relay.example.com/v1 \
+  --model claude-sonnet-4-5</div>
+      </div>
+      <div class="step">
+        <span class="num">Gate</span>
+        <h3>Install into Claude Code / Codex</h3>
+        <div class="cmd" data-copy>pip install agent-police-gate
+apgate install claude-code</div>
+        <p style="margin-top:12px"><a href="/gate/en">See what it blocks →</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>
+      Attack classes and measurements come from
+      <a href="https://arxiv.org/abs/2604.08407">Your Agent Is Mine: Measuring Malicious Intermediary Attacks on the LLM Supply Chain</a> (arXiv:2604.08407).
+      The paper explicitly does not release its attack proxy; agent-police is an independent defence-side implementation.
+    </p>
+    <p>
+      <a href="https://github.com/RomaCredit/agent-police">GitHub</a> ·
+      <a href="https://pypi.org/project/agent-police/">PyPI</a> ·
+      <a href="/gate/en">Client gate</a> ·
+      <a href="/">中文</a> ·
+      Apache-2.0
+    </p>
+    <p style="color:var(--text-muted)">
+      Only probe endpoints you own or are explicitly authorised to test.
+    </p>
+  </div>
+</footer>
+
+<script src="/static/i18n.js"></script>
+<script src="/static/app.js"></script>
+<script src="/static/copy.js"></script>
+</body>
+</html>
