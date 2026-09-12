@@ -127,6 +127,14 @@ or the current MCP specification exposes one today.
 `agent-police serve` runs the web UI and the canary collector. A deployment
 lives at <https://security.romaapi.com>.
 
+The web dependencies are an extra, so that a machine that will only ever run
+`audit` does not get a web framework installed on it:
+
+```bash
+pip install 'agent-police[server]'
+agent-police serve --canary-base https://your-host.example.com
+```
+
 The hosted service asks for a key to an endpoint you do not trust, which is the
 same trust problem it exists to detect. Handling rules, all covered by tests:
 

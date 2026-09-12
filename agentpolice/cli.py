@@ -275,7 +275,23 @@ def cmd_canary(args) -> int:
 
 
 def cmd_serve(args) -> int:
-    from .server.app import serve
+    # The web dependencies are an extra, so the common failure here is a plain
+    # `pip install agent-police`. A bare ModuleNotFoundError sends people to
+    # search for "fastapi" instead of to the one command that fixes it.
+    try:
+        from .server.app import STATIC_DIR, serve
+    except ImportError as exc:
+        print(f"agent-police serve needs the web extra: {exc}\n\n"
+              "    pip install 'agent-police[server]'\n",
+              file=sys.stderr)
+        return 1
+
+    if not (STATIC_DIR / "index.html").exists():
+        print(f"the web UI is missing from this install ({STATIC_DIR}).\n"
+              "Reinstall from PyPI, or run from a source checkout.\n",
+              file=sys.stderr)
+        return 1
+
     serve(host=args.host, port=args.port, canary_db=args.canary_db,
           canary_base=args.canary_base, canary_dns=args.canary_dns)
     return 0

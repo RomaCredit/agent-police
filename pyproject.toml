@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agent-police"
-version = "0.1.0"
+version = "0.2.0"
 description = "Audit LLM API routers for tool-call tampering, credential exfiltration and supply-chain risk"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -37,6 +37,10 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+# `agent-police serve` needs these. They are an extra rather than a hard
+# dependency because the common case is the CLI, and a scanner should not drag
+# a web framework onto a machine that will only ever run `audit`.
+server = ["fastapi>=0.110", "uvicorn[standard]>=0.27"]
 
 [project.urls]
 Homepage = "https://github.com/RomaCredit/agent-police"
@@ -50,7 +54,16 @@ agent-police = "agentpolice.cli:main"
 include = ["agentpolice*"]
 
 [tool.setuptools.package-data]
-agentpolice = ["data/*.json"]
+# The web UI is data, not code, so it only ships if it is listed here. It was
+# not, which meant every published wheel carried `agent-police serve` as an
+# advertised command with no pages behind it. `tests/test_packaging.py` now
+# asserts every file under server/static is matched by one of these patterns,
+# because adding a subdirectory (as `en/` did) silently breaks a flat glob.
+agentpolice = [
+    "data/*.json",
+    "server/static/*",
+    "server/static/*/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

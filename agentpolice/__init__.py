@@ -15,4 +15,4 @@ agent-police never executes a tool call returned by the endpoint under test.
 Detection is purely string- and metadata-level.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
