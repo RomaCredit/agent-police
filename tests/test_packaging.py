@@ -11,10 +11,15 @@ in somebody's `pip install`.
 from __future__ import annotations
 
 import fnmatch
-import tomllib
+import sys
 from pathlib import Path
 
 import pytest
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:  # tomllib landed in 3.11; this package still supports 3.10
+    import tomli as tomllib
 
 ROOT = Path(__file__).resolve().parent.parent
 PKG = ROOT / "agentpolice"

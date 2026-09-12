@@ -36,7 +36,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = [
+    "pytest>=8.0",
+    # tests/test_packaging.py reads pyproject.toml; tomllib is 3.11+ and this
+    # package still supports 3.10.
+    "tomli>=2.0; python_version < '3.11'",
+]
 # `agent-police serve` needs these. They are an extra rather than a hard
 # dependency because the common case is the CLI, and a scanner should not drag
 # a web framework onto a machine that will only ever run `audit`.
@@ -70,7 +75,10 @@ testpaths = ["tests"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+# Must match requires-python, not the newest interpreter in the CI matrix.
+# At py312 ruff was happy to rewrite code into forms that do not run on 3.10,
+# which the package claims to support and CI actually tests.
+target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "C4", "PIE", "RUF", "FURB"]
